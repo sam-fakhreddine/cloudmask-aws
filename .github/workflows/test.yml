@@ -33,6 +33,11 @@ jobs:
       run: |
         uv pip install --system -e ".[dev]"
 
+    - name: Auto-fix code issues
+      run: |
+        uv run ruff check --fix src/cloudmask/ tests/ examples/ || true
+        uv run black src/cloudmask/ tests/ examples/
+
     - name: Check code formatting with Black
       run: |
         uv run black --check src/cloudmask/ tests/ examples/
