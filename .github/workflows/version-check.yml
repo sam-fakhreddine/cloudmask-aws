@@ -1,0 +1,33 @@
+name: Version Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/cloudmask/__version__.py'
+      - 'pyproject.toml'
+      - 'CHANGELOG.md'
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check version consistency
+      run: |
+        VERSION_PY=$(grep -oP '__version__ = "\K[^"]+' src/cloudmask/__version__.py)
+        VERSION_TOML=$(grep -oP 'version = "\K[^"]+' pyproject.toml | head -1)
+
+        if [ "$VERSION_PY" != "$VERSION_TOML" ]; then
+          echo "Version mismatch: __version__.py ($VERSION_PY) != pyproject.toml ($VERSION_TOML)"
+          exit 1
+        fi
+
+        if ! grep -q "## \[$VERSION_PY\]" CHANGELOG.md; then
+          echo "Version $VERSION_PY not found in CHANGELOG.md"
+          exit 1
+        fi
+
+        echo "All versions are consistent: $VERSION_PY"

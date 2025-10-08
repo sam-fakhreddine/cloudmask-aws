@@ -1,0 +1,5 @@
+[pydocstyle]
+convention = google
+match = (?!test_).*\.py
+match-dir = ^(?!(\.tox|\.eggs|build|dist)).*
+add-ignore = D100,D104

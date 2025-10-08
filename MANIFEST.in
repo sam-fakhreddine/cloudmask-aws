@@ -1,0 +1,7 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include logo.png
+include pyproject.toml
+recursive-include src/cloudmask *.py
+recursive-include src/cloudmask py.typed
