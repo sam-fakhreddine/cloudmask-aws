@@ -1,0 +1,34 @@
+# Auto-labeling configuration for pull requests
+
+documentation:
+  - '**/*.md'
+  - 'docs/**/*'
+
+dependencies:
+  - 'pyproject.toml'
+  - 'requirements*.txt'
+  - 'uv.lock'
+
+ci:
+  - '.github/workflows/**'
+  - '.github/**/*.yml'
+
+tests:
+  - 'tests/**/*'
+  - '**/*test*.py'
+
+core:
+  - 'src/cloudmask/core.py'
+  - 'src/cloudmask/__init__.py'
+
+cli:
+  - 'src/cloudmask/cli.py'
+
+security:
+  - 'src/cloudmask/security.py'
+  - 'src/cloudmask/patterns.py'
+
+config:
+  - 'src/cloudmask/config*.py'
+  - '**/*.yaml'
+  - '**/*.yml'
