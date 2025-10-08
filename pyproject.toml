@@ -59,6 +59,7 @@ dev = [
     "black>=25.9.0",
     "ruff>=0.14.0",
     "mypy>=1.18.2",
+    "types-tqdm>=4.66.0",
     "pydocstyle>=6.3.0",
     "pre-commit>=4.3.0",
     "sphinx>=7.0.0",
@@ -154,7 +155,7 @@ warn_no_return = true
 strict_equality = true
 
 [[tool.mypy.overrides]]
-module = ["yaml", "pyperclip"]
+module = ["yaml", "pyperclip", "tomllib"]
 ignore_missing_imports = true
 
 [tool.pydocstyle]

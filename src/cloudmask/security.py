@@ -38,7 +38,7 @@ def encrypt_mapping(mapping: dict[str, str], password: str) -> bytes:
     data = json.dumps(mapping).encode()
     encrypted = fernet.encrypt(data)
 
-    return salt + encrypted  # type: ignore[no-any-return]
+    return salt + encrypted
 
 
 def decrypt_mapping(encrypted_data: bytes, password: str) -> dict[str, str]:
