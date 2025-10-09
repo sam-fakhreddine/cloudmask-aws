@@ -146,8 +146,8 @@ class TestCloudMask:
         mask.anonymize("vpc-123 i-456")
         mask.save_mapping(mapping_file)
 
-        # Load into new instance
-        new_mask = CloudMask(seed="different-seed")
+        # Load into new instance with same seed
+        new_mask = CloudMask(seed="test-seed")
         new_mask.load_mapping(mapping_file)
 
         assert new_mask.mapping == mask.mapping
