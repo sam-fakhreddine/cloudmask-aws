@@ -426,25 +426,69 @@ class CloudMask:
         )
         return len(self.mapping)
 
-    def save_mapping(self, filepath: Path | str) -> None:
-        """Save mapping to JSON file."""
+    def save_mapping(self, filepath: Path | str, merge: bool = True) -> None:
+        """Save mapping to JSON file with secure permissions and seed tracking.
+
+        Args:
+            filepath: Path to save mapping file
+            merge: If True and file exists, merge with existing mappings (default: True)
+        """
+        from .storage import ensure_secure_permissions
+
         filepath = Path(filepath) if isinstance(filepath, str) else filepath
         logger.debug(f"Saving mapping to {filepath}")
 
-        if len(self.mapping) > 1_000_000:
+        # Prepare data with metadata
+        data = {
+            "_metadata": {
+                "seed_hash": hashlib.sha256(self.seed.encode()).hexdigest()[:16],
+                "version": "1.0",
+            },
+            "mappings": self.mapping,
+        }
+
+        # Load and merge existing mappings if enabled
+        if merge and filepath.exists():
+            try:
+                existing = json.loads(filepath.read_text(encoding="utf-8"))
+
+                # Handle old format (plain dict) or new format (with metadata)
+                if "_metadata" in existing:
+                    existing_seed_hash = existing["_metadata"].get("seed_hash")
+                    if existing_seed_hash != data["_metadata"]["seed_hash"]:
+                        raise MappingError(
+                            "Cannot merge mappings created with different seeds",
+                            f"Existing seed hash: {existing_seed_hash}, current: {data['_metadata']['seed_hash']}",
+                        )
+                    # Merge mappings
+                    existing_mappings = existing.get("mappings", {})
+                    data["mappings"] = {**existing_mappings, **self.mapping}
+                    logger.debug(f"Merged {len(existing_mappings)} existing mappings")
+                else:
+                    # Old format - can't verify seed, warn user
+                    logger.warning(
+                        "Existing mapping has no seed metadata, cannot verify compatibility"
+                    )
+                    data["mappings"] = {**existing, **self.mapping}
+
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"Could not load existing mapping, will overwrite: {e}")
+
+        if len(data["mappings"]) > 1_000_000:
             raise MappingError(
-                f"Mapping too large ({len(self.mapping)} entries, max 1M)",
+                f"Mapping too large ({len(data['mappings'])} entries, max 1M)",
                 "Process data in smaller batches",
             )
 
         try:
-            filepath.write_text(json.dumps(self.mapping, indent=2), encoding="utf-8")
+            filepath.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            ensure_secure_permissions(filepath)
         except OSError as e:
             raise FileOperationError(
                 f"Cannot write mapping file: {e}", "Check file permissions and disk space"
             ) from e
 
-        log_operation("mapping_saved", path=str(filepath), entries=len(self.mapping))
+        log_operation("mapping_saved", path=str(filepath), entries=len(data["mappings"]))
 
     def load_mapping(self, filepath: Path | str) -> None:
         """Load mapping from JSON file."""
@@ -466,7 +510,7 @@ class CloudMask:
 
         try:
             content = filepath.read_text(encoding="utf-8")
-            mapping = json.loads(content)
+            data = json.loads(content)
         except json.JSONDecodeError as e:
             raise MappingError(
                 f"Invalid JSON in mapping file: {e}", "Ensure the mapping file is valid JSON"
@@ -476,6 +520,21 @@ class CloudMask:
                 f"Cannot read mapping file (encoding error): {e}",
                 "Ensure the file is UTF-8 encoded",
             ) from e
+
+        # Handle new format (with metadata) or old format (plain dict)
+        if "_metadata" in data and "mappings" in data:
+            mapping = data["mappings"]
+            seed_hash = data["_metadata"].get("seed_hash")
+            current_seed_hash = hashlib.sha256(self.seed.encode()).hexdigest()[:16]
+            if seed_hash != current_seed_hash:
+                raise MappingError(
+                    "Mapping was created with a different seed",
+                    f"File seed hash: {seed_hash}, current seed hash: {current_seed_hash}",
+                )
+        else:
+            # Old format - plain dict
+            mapping = data
+            logger.warning("Loading mapping without seed verification (old format)")
 
         if not isinstance(mapping, dict):
             raise MappingError(
@@ -518,7 +577,12 @@ class CloudUnmask:
                         "Ensure you have saved the mapping file during anonymization",
                     )
                 try:
-                    loaded_mapping = json.loads(f.read_text())
+                    data = json.loads(f.read_text())
+                    # Handle new format (with metadata) or old format (plain dict)
+                    if "_metadata" in data and "mappings" in data:
+                        loaded_mapping = data["mappings"]
+                    else:
+                        loaded_mapping = data
                     self.reverse_mapping = {v: k for k, v in loaded_mapping.items()}
                 except json.JSONDecodeError as e:
                     raise MappingError(
