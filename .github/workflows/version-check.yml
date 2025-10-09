@@ -1,6 +1,6 @@
 name: Version Check
 
-on:
+on: # yamllint disable-line rule:truthy
   pull_request:
     branches: [main]
     paths:
@@ -9,8 +9,8 @@ on:
       - 'CHANGELOG.md'
 
 jobs:
-  check-version:
-    runs-on: ubuntu-latest
+  check-version: # yamllint disable-line rule:truthy
+    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4

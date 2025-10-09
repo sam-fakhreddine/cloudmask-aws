@@ -1,6 +1,6 @@
 name: Release
 
-on:
+on: # yamllint disable-line rule:truthy
   push:
     tags:
       - 'v*'
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: # yamllint disable-line rule:truthy '3.11'
 
     - name: Install uv
       run: curl -LsSf https://astral.sh/uv/install.sh | sh

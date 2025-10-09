@@ -1,6 +1,6 @@
 name: Dependency Review
 
-on:
+on: # yamllint disable-line rule:truthy
   pull_request:
     branches: [ master ]
 
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   dependency-review:
-    runs-on: ubuntu-latest
+    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4

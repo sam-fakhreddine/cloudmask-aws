@@ -1,13 +1,13 @@
 name: PR Checks
 
-on:
+on: # yamllint disable-line rule:truthy
   pull_request:
     branches: [ master ]
 
 jobs:
   pr-title:
     name: Validate PR Title
-    runs-on: ubuntu-latest
+    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
     steps:
       - name: Check PR title format
         uses: amannn/action-semantic-pull-request@v5
@@ -29,7 +29,7 @@ jobs:
 
   pr-size:
     name: Check PR Size
-    runs-on: ubuntu-latest
+    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,21 +39,21 @@ jobs:
         run: |
           FILES_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | wc -l)
           LINES_CHANGED=$(git diff --stat origin/${{ github.base_ref }}...HEAD | tail -1 | awk '{print $4+$6}')
-          
+
           echo "Files changed: $FILES_CHANGED"
           echo "Lines changed: $LINES_CHANGED"
-          
+
           if [ "$FILES_CHANGED" -gt 50 ]; then
             echo "::warning::PR changes more than 50 files. Consider splitting into smaller PRs."
           fi
-          
+
           if [ "$LINES_CHANGED" -gt 1000 ]; then
             echo "::warning::PR changes more than 1000 lines. Consider splitting into smaller PRs."
           fi
 
   conflict-check:
     name: Check for Merge Conflicts
-    runs-on: ubuntu-latest
+    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,14 +62,15 @@ jobs:
       - name: Check for merge conflicts
         run: |
           git fetch origin ${{ github.base_ref }}
-          if git merge-tree $(git merge-base HEAD origin/${{ github.base_ref }}) HEAD origin/${{ github.base_ref }} | grep -q '<<<<<<<'; then
-            echo "::error::Merge conflicts detected. Please resolve conflicts before merging."
+          BASE=$(git merge-base HEAD origin/${{ github.base_ref }})
+          if git merge-tree $BASE HEAD origin/${{ github.base_ref }} | grep -q '<<<<<<<'; then
+            echo "::error::Merge conflicts detected."
             exit 1
           fi
 
   security-scan:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 

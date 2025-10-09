@@ -1,8 +1,8 @@
 name: Mark Stale Issues and PRs
 
-on:
+on: # yamllint disable-line rule:truthy
   schedule:
-    - cron: '0 0 * * *'  # Daily at midnight
+    - cron: # yamllint disable-line rule:truthy '0 0 * * *'  # Daily at midnight
   workflow_dispatch:
 
 permissions:
@@ -11,13 +11,17 @@ permissions:
 
 jobs:
   stale:
-    runs-on: ubuntu-latest
+    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
     steps:
       - uses: actions/stale@v10
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          stale-issue-message: 'This issue has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs. Thank you for your contributions.'
-          stale-pr-message: 'This PR has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs.'
+          stale-issue-message: >
+            This issue has been automatically marked as stale because it has not had
+            recent activity. It will be closed if no further activity occurs.
+          stale-pr-message: >
+            This PR has been automatically marked as stale because it has not had
+            recent activity. It will be closed if no further activity occurs.
           close-issue-message: 'This issue was automatically closed due to inactivity.'
           close-pr-message: 'This PR was automatically closed due to inactivity.'
           days-before-stale: 60
