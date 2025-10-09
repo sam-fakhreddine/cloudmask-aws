@@ -29,9 +29,24 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const prNumber = context.payload.inputs?.pr_number ||
-                          context.payload.pull_request?.number ||
-                          context.issue.number;
+            let prNumber = context.payload.inputs?.pr_number;
+
+            if (!prNumber && context.payload.workflow_run) {
+              const { data: prs } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head: `${context.repo.owner}:${context.payload.workflow_run.head_branch}`,
+                state: 'open'
+              });
+              if (prs.length > 0) {
+                prNumber = prs[0].number;
+              }
+            }
+
+            if (!prNumber) {
+              core.setFailed('Could not determine PR number');
+              return;
+            }
 
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
@@ -59,17 +74,28 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const pr = context.payload.pull_request || (
-              await github.rest.pulls.get({
+            let prNumber = context.payload.inputs?.pr_number;
+
+            if (!prNumber && context.payload.workflow_run) {
+              const { data: prs } = await github.rest.pulls.list({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                pull_number: context.issue.number
-              })
-            ).data;
+                head: `${context.repo.owner}:${context.payload.workflow_run.head_branch}`,
+                state: 'open'
+              });
+              if (prs.length > 0) {
+                prNumber = prs[0].number;
+              }
+            }
+
+            if (!prNumber) {
+              core.setFailed('Could not determine PR number');
+              return;
+            }
 
             await github.rest.pulls.merge({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: pr.number,
+              pull_number: prNumber,
               merge_method: 'squash'
             });

@@ -2,7 +2,7 @@ name: Version Check
 
 on: # yamllint disable-line rule:truthy
   pull_request:
-    branches: [main]
+    branches: [master]
     paths:
       - 'src/cloudmask/__version__.py'
       - 'pyproject.toml'

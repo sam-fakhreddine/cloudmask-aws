@@ -4,8 +4,6 @@ on: # yamllint disable-line rule:truthy
   push:
     branches:
       - master
-  pull_request:
-    types: [opened, reopened, synchronize, edited]
 
 permissions:
   contents: write

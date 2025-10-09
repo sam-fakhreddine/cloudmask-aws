@@ -1,8 +1,6 @@
 name: CodeQL Security Analysis
 
 on: # yamllint disable-line rule:truthy
-  push:
-    branches: [ master ]
   pull_request:
     branches: [ master ]
   schedule:
