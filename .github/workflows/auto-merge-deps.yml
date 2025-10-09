@@ -10,7 +10,7 @@ on: # yamllint disable-line rule:truthy
   workflow_dispatch:
     inputs:
       pr_number:
-        description: # yamllint disable-line rule:truthy 'PR number to merge'
+        description: 'PR number to merge'
         required: true
         type: number
 

@@ -9,7 +9,7 @@ on: # yamllint disable-line rule:truthy
       - 'CHANGELOG.md'
 
 jobs:
-  check-version: # yamllint disable-line rule:truthy
+  check-version:
     runs-on: ubuntu-latest
 
     steps:
