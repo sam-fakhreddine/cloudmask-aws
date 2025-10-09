@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,14 @@ import yaml
 
 from .core import Config, CustomPattern
 from .exceptions import ConfigurationError
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    try:
+        import tomli as tomllib  # type: ignore[import-not-found]
+    except ImportError:
+        tomllib = None
 
 
 def load_from_env() -> dict[str, Any]:
@@ -56,16 +65,11 @@ def load_from_json(path: Path) -> dict[str, Any]:
 
 def load_from_toml(path: Path) -> dict[str, Any]:
     """Load configuration from TOML file."""
-    try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib
-        except ImportError:
-            raise ConfigurationError(
-                "TOML support requires Python 3.11+ or tomli package",
-                "Install with: pip install tomli",
-            ) from None
+    if tomllib is None:
+        raise ConfigurationError(
+            "TOML support requires Python 3.11+ or tomli package",
+            "Install with: pip install tomli",
+        )
 
     try:
         with path.open("rb") as f:

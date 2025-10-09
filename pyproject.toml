@@ -155,7 +155,7 @@ warn_no_return = true
 strict_equality = true
 
 [[tool.mypy.overrides]]
-module = ["yaml", "pyperclip", "tomllib"]
+module = ["yaml", "pyperclip", "tomllib", "tomli"]
 ignore_missing_imports = true
 
 [tool.pydocstyle]
