@@ -1,6 +1,7 @@
 """Tests for configuration templates."""
 
 import pytest
+import yaml
 
 from cloudmask.config_templates import get_template, list_templates, save_template
 
@@ -37,8 +38,6 @@ class TestTemplates:
 
     def test_all_templates_valid(self):
         """Test that all templates are valid YAML."""
-        import yaml
-
         for template_name in list_templates():
             template = get_template(template_name)
             data = yaml.safe_load(template)

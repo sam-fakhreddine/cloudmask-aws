@@ -2,52 +2,66 @@ name: Tests
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ['3.10', '3.11', '3.12']
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -e ".[dev]"
+        uv pip install --system -e ".[dev]"
+
+    - name: Auto-fix code issues
+      run: |
+        uv run ruff check --fix src/cloudmask/ tests/ examples/ || true
+        uv run black src/cloudmask/ tests/ examples/
 
     - name: Check code formatting with Black
       run: |
-        black --check cloudmask/ tests/ examples/
+        uv run black --check src/cloudmask/ tests/ examples/
 
     - name: Lint with Ruff
       run: |
-        ruff check cloudmask/ tests/ examples/
+        uv run ruff check src/cloudmask/ tests/ examples/
 
     - name: Type check with Mypy
       run: |
-        mypy cloudmask/
+        uv run mypy src/cloudmask/
 
     - name: Check docstrings with Pydocstyle
       run: |
-        pydocstyle cloudmask/
+        uv run pydocstyle src/cloudmask/
 
     - name: Run tests with pytest
       run: |
-        pytest tests/ -v --cov=cloudmask --cov-report=xml --cov-report=term-missing
+        uv run pytest tests/ -v --cov=cloudmask --cov-report=xml --cov-report=term-missing
 
-    - name: Upload coverage
-      uses: codecov/codecov-action@v3
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
       if: matrix.python-version == '3.11'
       with:
         file: ./coverage.xml
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false

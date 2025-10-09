@@ -1,0 +1,33 @@
+# Auto-labeling configuration for pull requests
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file: ['**/*.md', 'docs/**/*']
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file: ['pyproject.toml', 'requirements*.txt', 'uv.lock']
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file: ['.github/workflows/**', '.github/**/*.yml']
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file: ['tests/**/*', '**/*test*.py']
+
+core:
+  - changed-files:
+    - any-glob-to-any-file: ['src/cloudmask/core.py', 'src/cloudmask/__init__.py']
+
+cli:
+  - changed-files:
+    - any-glob-to-any-file: ['src/cloudmask/cli.py']
+
+security:
+  - changed-files:
+    - any-glob-to-any-file: ['src/cloudmask/security.py', 'src/cloudmask/patterns.py']
+
+config:
+  - changed-files:
+    - any-glob-to-any-file: ['src/cloudmask/config*.py', '**/*.yaml', '**/*.yml']

@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from cloudmask import CloudMask, CloudUnmask, Config
+from cloudmask import CloudMask, CloudUnmask, Config, CustomPattern, anonymize_dict
 from cloudmask.exceptions import (
     ConfigurationError,
     FileOperationError,
@@ -109,8 +109,6 @@ class TestErrorHandling:
     def test_config_with_invalid_pattern(self):
         """Test config with invalid regex pattern."""
         with pytest.raises(ValidationError, match="Invalid regex"):
-            from cloudmask import CustomPattern
-
             CustomPattern(pattern="[invalid(", name="bad")
 
     def test_unanonymize_nonexistent_file(self, tmp_path):
@@ -171,8 +169,6 @@ class TestErrorHandling:
 
     def test_circular_reference_in_dict(self):
         """Test handling of circular references in dict anonymization."""
-        from cloudmask import anonymize_dict
-
         mask = CloudMask(seed="test")
 
         # Create circular reference

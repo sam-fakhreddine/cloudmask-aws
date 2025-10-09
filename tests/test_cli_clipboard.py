@@ -6,6 +6,7 @@ import pytest
 
 from cloudmask import CloudMask
 from cloudmask.cli import main
+from cloudmask.security import save_encrypted_mapping
 
 
 class TestCLIClipboard:
@@ -192,8 +193,6 @@ class TestCLIClipboard:
     @patch("cloudmask.cli.pyperclip")
     def test_unanonymize_clipboard_with_encryption(self, mock_pyperclip, tmp_path):
         """Test unanonymizing clipboard with encrypted mapping."""
-        from cloudmask.security import save_encrypted_mapping
-
         mapping_file = tmp_path / "mapping.bin"
 
         mask = CloudMask(seed="test")

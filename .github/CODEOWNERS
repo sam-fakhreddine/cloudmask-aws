@@ -1,0 +1,26 @@
+# Code Owners
+# These owners will be automatically requested for review when someone opens a pull request
+
+# Default owners for everything in the repo
+* @samfakhreddine
+
+# Core library code
+/src/cloudmask/ @samfakhreddine
+
+# Tests
+/tests/ @samfakhreddine
+
+# Documentation
+/docs/ @samfakhreddine
+*.md @samfakhreddine
+
+# CI/CD and workflows
+/.github/ @samfakhreddine
+
+# Configuration files
+pyproject.toml @samfakhreddine
+.pre-commit-config.yaml @samfakhreddine
+
+# Release and versioning
+/scripts/ @samfakhreddine
+CHANGELOG.md @samfakhreddine
