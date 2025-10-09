@@ -1,0 +1,15 @@
+extends: default
+
+rules:
+  line-length:
+    max: 150
+  document-start: disable
+  truthy:
+    allowed-values: ['true', 'false', 'on', 'off']
+  indentation:
+    spaces: 2
+    indent-sequences: whatever
+  brackets:
+    max-spaces-inside: 1
+  comments:
+    min-spaces-from-content: 1

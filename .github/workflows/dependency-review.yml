@@ -1,6 +1,6 @@
 name: Dependency Review
 
-on:
+on: # yamllint disable-line rule:truthy
   pull_request:
     branches: [ master ]
 

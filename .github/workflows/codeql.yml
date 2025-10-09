@@ -1,12 +1,12 @@
 name: CodeQL Security Analysis
 
-on:
+on: # yamllint disable-line rule:truthy
   push:
     branches: [ master ]
   pull_request:
     branches: [ master ]
   schedule:
-    - cron: '0 0 * * 1'  # Weekly on Monday
+    - cron: # yamllint disable-line rule:truthy '0 0 * * 1'  # Weekly on Monday
 
 permissions:
   actions: read

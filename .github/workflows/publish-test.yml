@@ -1,6 +1,6 @@
 name: Publish to TestPyPI
 
-on:
+on: # yamllint disable-line rule:truthy
   workflow_dispatch:
 
 jobs:
@@ -13,7 +13,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: # yamllint disable-line rule:truthy '3.11'
 
     - name: Install uv
       run: curl -LsSf https://astral.sh/uv/install.sh | sh
