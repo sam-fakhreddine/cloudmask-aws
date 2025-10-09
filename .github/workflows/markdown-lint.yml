@@ -5,23 +5,33 @@ on: # yamllint disable-line rule:truthy
     paths:
       - '**.md'
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   markdownlint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: markdownlint-cli2-action
         uses: DavidAnson/markdownlint-cli2-action@v20
         with:
           globs: '**/*.md'
+          config: '.markdownlint.json'
           fix: true
 
-      - name: Commit changes
+      - name: Commit and push changes
         if: failure()
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add -A
-          git diff --quiet && git diff --staged --quiet || git commit -m "Fix markdown lint issues"
-          git push
+          if ! git diff --quiet --staged; then
+            git commit -m "style: fix markdown lint issues [skip ci]"
+            git push
+          fi

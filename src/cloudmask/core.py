@@ -7,7 +7,9 @@ __version__ = "0.1.0"
 
 import hashlib
 import json
+import os
 import re
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,6 +21,7 @@ from .cache import LRUCache
 from .exceptions import ConfigurationError, FileOperationError, MappingError, ValidationError
 from .logging import log_operation, logger
 from .patterns import AWS_ACCOUNT_PATTERN, AWS_RESOURCE_PATTERN, get_aws_patterns, is_valid_ip
+from .storage import ensure_secure_permissions
 
 # ============================================================
 # Modern Type Hints (Python 3.10+)
@@ -169,6 +172,9 @@ class CloudMask:
 
     def _generate_deterministic_id(self, original: str, prefix: str = "") -> str:
         """Generate deterministic anonymized ID."""
+        # lgtm[py/weak-sensitive-data-hashing]
+        # SHA256 is appropriate here for deterministic anonymization of identifiers,
+        # not for password hashing. The seed acts as a secret key.
         hash_obj = hashlib.sha256(f"{self.seed}:{original}".encode())
         hash_hex = hash_obj.hexdigest()[:16]
 
@@ -201,12 +207,14 @@ class CloudMask:
                 anonymized = self._hash_to_domain(original)
 
             case "company":
+                # lgtm[py/weak-sensitive-data-hashing]
                 hash_hex = hashlib.sha256(f"{self.seed}:company:{original}".encode()).hexdigest()[
                     :8
                 ]
                 anonymized = f"Company-{hash_hex}"
 
             case _:  # Default case
+                # lgtm[py/weak-sensitive-data-hashing]
                 hash_hex = hashlib.sha256(
                     f"{self.seed}:{resource_type}:{original}".encode()
                 ).hexdigest()[:12]
@@ -218,18 +226,21 @@ class CloudMask:
 
     def _hash_to_account_id(self, original: str) -> str:
         """Generate 12-digit account ID."""
+        # lgtm[py/weak-sensitive-data-hashing]
         hash_obj = hashlib.sha256(f"{self.seed}:account:{original}".encode())
         hash_int = int(hash_obj.hexdigest()[:12], 16)
         return f"{hash_int % 1_000_000_000_000:012d}"  # Underscore separators
 
     def _hash_to_ip(self, original: str) -> str:
         """Generate IP address."""
+        # lgtm[py/weak-sensitive-data-hashing]
         hash_obj = hashlib.sha256(f"{self.seed}:ip:{original}".encode())
         hash_bytes = hash_obj.digest()[:4]
         return ".".join(str(b) for b in hash_bytes)
 
     def _hash_to_domain(self, original: str) -> str:
         """Generate domain name."""
+        # lgtm[py/weak-sensitive-data-hashing]
         hash_obj = hashlib.sha256(f"{self.seed}:domain:{original}".encode())
         hash_hex = hash_obj.hexdigest()[:12]
 
@@ -426,25 +437,107 @@ class CloudMask:
         )
         return len(self.mapping)
 
-    def save_mapping(self, filepath: Path | str) -> None:
-        """Save mapping to JSON file."""
+    def _build_mapping_payload(self) -> dict[str, Any]:
+        """Build mapping payload with metadata."""
+        # lgtm[py/weak-sensitive-data-hashing]
+        return {
+            "_metadata": {
+                "seed_hash": hashlib.sha256(self.seed.encode()).hexdigest()[:16],
+                "version": "1.0",
+            },
+            "mappings": self.mapping,
+        }
+
+    def _merge_existing_mappings(self, filepath: Path, payload: dict[str, Any]) -> None:
+        """Merge existing mappings if file exists."""
+        try:
+            if not filepath.exists():
+                return
+        except (OSError, PermissionError):
+            # Can't check if file exists (e.g., permission denied)
+            return
+
+        try:
+            existing = json.loads(filepath.read_text(encoding="utf-8"))
+
+            # Handle old format (plain dict) or new format (with metadata)
+            if "_metadata" in existing:
+                existing_seed_hash = existing["_metadata"].get("seed_hash")
+                if existing_seed_hash != payload["_metadata"]["seed_hash"]:
+                    raise MappingError(
+                        "Cannot merge mappings created with different seeds",
+                        f"Existing seed hash: {existing_seed_hash}, current: {payload['_metadata']['seed_hash']}",
+                    )
+                # Merge mappings
+                existing_mappings = existing.get("mappings", {})
+                payload["mappings"] = {**existing_mappings, **self.mapping}
+                logger.debug(f"Merged {len(existing_mappings)} existing mappings")
+            else:
+                # Old format - can't verify seed, warn user
+                logger.warning("Existing mapping has no seed metadata, cannot verify compatibility")
+                payload["mappings"] = {**existing, **self.mapping}
+
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Could not load existing mapping, will overwrite: {e}")
+
+    def _write_mapping_atomically(self, filepath: Path, data: dict[str, Any]) -> None:
+        """Write mapping file atomically with secure permissions."""
+        # Write to temporary file first
+        temp_fd, temp_path = tempfile.mkstemp(
+            dir=filepath.parent, prefix=".cloudmask_", suffix=".tmp"
+        )
+        temp_file = Path(temp_path)
+
+        try:
+            # Write data to temp file
+            with temp_file.open("w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            # Close the file descriptor
+            os.close(temp_fd)
+
+            # Set secure permissions on temp file
+            ensure_secure_permissions(temp_file)
+
+            # Atomic rename
+            temp_file.replace(filepath)
+        except Exception:
+            # Clean up temp file on error
+            temp_file.unlink(missing_ok=True)
+            raise
+
+    def save_mapping(self, filepath: Path | str, merge: bool = True) -> None:
+        """Save mapping to JSON file with secure permissions and seed tracking.
+
+        Args:
+            filepath: Path to save mapping file
+            merge: If True and file exists, merge with existing mappings (default: True)
+        """
         filepath = Path(filepath) if isinstance(filepath, str) else filepath
         logger.debug(f"Saving mapping to {filepath}")
 
-        if len(self.mapping) > 1_000_000:
+        # Build payload with metadata
+        payload = self._build_mapping_payload()
+
+        # Merge with existing mappings if enabled
+        if merge:
+            self._merge_existing_mappings(filepath, payload)
+
+        # Validate size
+        if len(payload["mappings"]) > 1_000_000:
             raise MappingError(
-                f"Mapping too large ({len(self.mapping)} entries, max 1M)",
+                f"Mapping too large ({len(payload['mappings'])} entries, max 1M)",
                 "Process data in smaller batches",
             )
 
+        # Write atomically
         try:
-            filepath.write_text(json.dumps(self.mapping, indent=2), encoding="utf-8")
+            self._write_mapping_atomically(filepath, payload)
         except OSError as e:
             raise FileOperationError(
                 f"Cannot write mapping file: {e}", "Check file permissions and disk space"
             ) from e
 
-        log_operation("mapping_saved", path=str(filepath), entries=len(self.mapping))
+        log_operation("mapping_saved", path=str(filepath), entries=len(payload["mappings"]))
 
     def load_mapping(self, filepath: Path | str) -> None:
         """Load mapping from JSON file."""
@@ -466,7 +559,7 @@ class CloudMask:
 
         try:
             content = filepath.read_text(encoding="utf-8")
-            mapping = json.loads(content)
+            data = json.loads(content)
         except json.JSONDecodeError as e:
             raise MappingError(
                 f"Invalid JSON in mapping file: {e}", "Ensure the mapping file is valid JSON"
@@ -476,6 +569,22 @@ class CloudMask:
                 f"Cannot read mapping file (encoding error): {e}",
                 "Ensure the file is UTF-8 encoded",
             ) from e
+
+        # Handle new format (with metadata) or old format (plain dict)
+        if "_metadata" in data and "mappings" in data:
+            mapping = data["mappings"]
+            seed_hash = data["_metadata"].get("seed_hash")
+            # lgtm[py/weak-sensitive-data-hashing]
+            current_seed_hash = hashlib.sha256(self.seed.encode()).hexdigest()[:16]
+            if seed_hash != current_seed_hash:
+                raise MappingError(
+                    "Mapping was created with a different seed",
+                    f"File seed hash: {seed_hash}, current seed hash: {current_seed_hash}",
+                )
+        else:
+            # Old format - plain dict
+            mapping = data
+            logger.warning("Loading mapping without seed verification (old format)")
 
         if not isinstance(mapping, dict):
             raise MappingError(
@@ -518,7 +627,12 @@ class CloudUnmask:
                         "Ensure you have saved the mapping file during anonymization",
                     )
                 try:
-                    loaded_mapping = json.loads(f.read_text())
+                    data = json.loads(f.read_text())
+                    # Handle new format (with metadata) or old format (plain dict)
+                    if "_metadata" in data and "mappings" in data:
+                        loaded_mapping = data["mappings"]
+                    else:
+                        loaded_mapping = data
                     self.reverse_mapping = {v: k for k, v in loaded_mapping.items()}
                 except json.JSONDecodeError as e:
                     raise MappingError(

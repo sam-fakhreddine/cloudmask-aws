@@ -18,6 +18,7 @@ from .core import CloudMask, CloudUnmask
 from .exceptions import ClipboardError, CloudMaskError
 from .logging import log_error, setup_logging
 from .security import load_encrypted_mapping, save_encrypted_mapping
+from .storage import get_default_mapping_path, get_storage_dir
 from .streaming import stream_anonymize_file, stream_unanonymize_file
 
 
@@ -35,14 +36,14 @@ Examples:
   # Anonymize a file with config
   cloudmask anonymize -i input.txt -o anonymized.txt -m mapping.json -c config.yaml
 
-  # Anonymize clipboard content
-  cloudmask anonymize --clipboard -m mapping.json -s "custom-seed"
+  # Anonymize clipboard content (uses ~/.cloudmask/mapping.json by default)
+  cloudmask anonymize --clipboard -s "custom-seed"
 
-  # Unanonymize a file
-  cloudmask unanonymize -i anonymized.txt -o output.txt -m mapping.json
+  # Unanonymize a file (uses ~/.cloudmask/mapping.json by default)
+  cloudmask unanonymize -i anonymized.txt -o output.txt
 
-  # Unanonymize clipboard content
-  cloudmask unanonymize --clipboard -m mapping.json
+  # Unanonymize clipboard content (uses ~/.cloudmask/mapping.json by default)
+  cloudmask unanonymize --clipboard
         """,
     )
 
@@ -98,7 +99,12 @@ Examples:
     anon_parser = subparsers.add_parser("anonymize", help="Anonymize AWS identifiers")
     anon_parser.add_argument("-i", "--input", type=Path, help="Input file to anonymize")
     anon_parser.add_argument("-o", "--output", type=Path, help="Output file for anonymized content")
-    anon_parser.add_argument("-m", "--mapping", type=Path, help="Output file for mapping (JSON)")
+    anon_parser.add_argument(
+        "-m",
+        "--mapping",
+        type=Path,
+        help="Output file for mapping (default: ~/.cloudmask/mapping.json). If file exists, new mappings will be merged.",
+    )
     anon_parser.add_argument("-c", "--config", type=Path, help="Config file (YAML/JSON/TOML)")
     anon_parser.add_argument(
         "--format",
@@ -145,7 +151,10 @@ Examples:
         "-o", "--output", type=Path, help="Output file for unanonymized content"
     )
     unanon_parser.add_argument(
-        "-m", "--mapping", required=True, type=Path, help="Mapping file (JSON)"
+        "-m",
+        "--mapping",
+        type=Path,
+        help="Mapping file (default: ~/.cloudmask/mapping.json)",
     )
     unanon_parser.add_argument(
         "--clipboard",
@@ -302,6 +311,7 @@ Examples:
             save_template(args.template, args.config)
             print(f"✓ Config file created from '{args.template}' template: {args.config}")
             print("\nEdit this file to customize your configuration.")
+            print(f"\nMappings will be stored in: {get_storage_dir()}")
             return 0
 
         if args.command == "anonymize":
@@ -368,19 +378,19 @@ Examples:
                         "Ensure clipboard access is available on your system",
                     ) from e
 
-                # Save mapping if specified
-                if args.mapping:
-                    if args.encrypt:
-                        import getpass
+                # Save mapping (use default if not specified)
+                mapping_path = args.mapping or get_default_mapping_path()
+                if args.encrypt:
+                    import getpass
 
-                        password = args.password or getpass.getpass("Enter password for mapping: ")
-                        save_encrypted_mapping(mask.mapping, args.mapping, password)
-                        if not args.quiet:
-                            print(f"✓ Encrypted mapping saved to: {args.mapping}")
-                    else:
-                        mask.save_mapping(args.mapping)
-                        if not args.quiet:
-                            print(f"✓ Mapping saved to: {args.mapping}")
+                    password = args.password or getpass.getpass("Enter password for mapping: ")
+                    save_encrypted_mapping(mask.mapping, mapping_path, password)
+                    if not args.quiet:
+                        print(f"✓ Encrypted mapping saved to: {mapping_path}")
+                else:
+                    mask.save_mapping(mapping_path)
+                    if not args.quiet:
+                        print(f"✓ Mapping saved to: {mapping_path}")
 
                 if not args.quiet:
                     print(
@@ -396,19 +406,19 @@ Examples:
                 else:
                     count = mask.anonymize_file(args.input, args.output)
 
-                # Save mapping
-                if args.mapping:
-                    if args.encrypt:
-                        import getpass
+                # Save mapping (use default if not specified)
+                mapping_path = args.mapping or get_default_mapping_path()
+                if args.encrypt:
+                    import getpass
 
-                        password = args.password or getpass.getpass("Enter password for mapping: ")
-                        save_encrypted_mapping(mask.mapping, args.mapping, password)
-                        if not args.quiet:
-                            print(f"✓ Encrypted mapping saved to: {args.mapping}")
-                    else:
-                        mask.save_mapping(args.mapping)
-                        if not args.quiet:
-                            print(f"✓ Mapping saved to: {args.mapping}")
+                    password = args.password or getpass.getpass("Enter password for mapping: ")
+                    save_encrypted_mapping(mask.mapping, mapping_path, password)
+                    if not args.quiet:
+                        print(f"✓ Encrypted mapping saved to: {mapping_path}")
+                else:
+                    mask.save_mapping(mapping_path)
+                    if not args.quiet:
+                        print(f"✓ Mapping saved to: {mapping_path}")
 
                 if not args.quiet:
                     print(f"✓ Anonymized content written to: {args.output}")
@@ -453,15 +463,16 @@ Examples:
                         "Copy some text to clipboard before running this command",
                     )
 
-                # Load mapping
+                # Load mapping (use default if not specified)
+                mapping_path = args.mapping or get_default_mapping_path()
                 if args.encrypted:
                     import getpass
 
                     password = args.password or getpass.getpass("Enter password for mapping: ")
-                    mapping = load_encrypted_mapping(args.mapping, password)
+                    mapping = load_encrypted_mapping(mapping_path, password)
                     unmask = CloudUnmask(mapping=mapping)
                 else:
-                    unmask = CloudUnmask(mapping_file=args.mapping)
+                    unmask = CloudUnmask(mapping_file=mapping_path)
 
                 # Unanonymize
                 unanonymized = unmask.unanonymize(text)
@@ -482,14 +493,15 @@ Examples:
                 return 0
             else:
                 # File-based processing
+                mapping_path = args.mapping or get_default_mapping_path()
                 if args.encrypted:
                     import getpass
 
                     password = args.password or getpass.getpass("Enter password for mapping: ")
-                    mapping = load_encrypted_mapping(args.mapping, password)
+                    mapping = load_encrypted_mapping(mapping_path, password)
                     unmask = CloudUnmask(mapping=mapping)
                 else:
-                    unmask = CloudUnmask(mapping_file=args.mapping)
+                    unmask = CloudUnmask(mapping_file=mapping_path)
 
                 if args.stream:
                     count = stream_unanonymize_file(

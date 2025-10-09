@@ -267,8 +267,8 @@ class TestEdgeCases:
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
             mask.save_mapping(f.name)
 
-            # Load it back
-            mask2 = CloudMask(seed="different")
+            # Load it back with same seed
+            mask2 = CloudMask(seed="test")
             mask2.load_mapping(f.name)
 
             assert mask2.mapping == mask.mapping

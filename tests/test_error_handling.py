@@ -139,15 +139,15 @@ class TestErrorHandling:
         mapping_file = tmp_path / "large_mapping.json"
         mask.save_mapping(mapping_file)
 
-        # Should be able to load it back
-        mask2 = CloudMask(seed="different")
+        # Should be able to load it back with same seed
+        mask2 = CloudMask(seed="test")
         mask2.load_mapping(mapping_file)
 
         assert len(mask2.mapping) == 10000
 
     def test_config_with_none_values(self):
         """Test config with None values."""
-        config = Config(seed=None)  # type: ignore
+        config = Config(seed=None)
         mask = CloudMask(config=config)
 
         # Should use default seed
@@ -180,7 +180,7 @@ class TestErrorHandling:
             anonymize_dict(data, mask)
 
     def test_save_mapping_overwrites_existing(self, tmp_path):
-        """Test that saving mapping overwrites existing file."""
+        """Test that saving mapping overwrites existing file when merge=False."""
         mapping_file = tmp_path / "mapping.json"
 
         mask1 = CloudMask(seed="test1")
@@ -189,12 +189,13 @@ class TestErrorHandling:
 
         mask2 = CloudMask(seed="test2")
         mask2.anonymize("vpc-222")
-        mask2.save_mapping(mapping_file)
+        mask2.save_mapping(mapping_file, merge=False)
 
         # Should contain only mask2's mapping
         loaded = json.loads(mapping_file.read_text())
-        assert "vpc-222" in loaded
-        assert "vpc-111" not in loaded
+        mappings = loaded.get("mappings", loaded)
+        assert "vpc-222" in mappings
+        assert "vpc-111" not in mappings
 
     def test_load_mapping_with_wrong_format(self, tmp_path):
         """Test loading mapping with wrong format."""
