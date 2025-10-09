@@ -172,6 +172,9 @@ class CloudMask:
 
     def _generate_deterministic_id(self, original: str, prefix: str = "") -> str:
         """Generate deterministic anonymized ID."""
+        # lgtm[py/weak-sensitive-data-hashing]
+        # SHA256 is appropriate here for deterministic anonymization of identifiers,
+        # not for password hashing. The seed acts as a secret key.
         hash_obj = hashlib.sha256(f"{self.seed}:{original}".encode())
         hash_hex = hash_obj.hexdigest()[:16]
 
@@ -204,12 +207,14 @@ class CloudMask:
                 anonymized = self._hash_to_domain(original)
 
             case "company":
+                # lgtm[py/weak-sensitive-data-hashing]
                 hash_hex = hashlib.sha256(f"{self.seed}:company:{original}".encode()).hexdigest()[
                     :8
                 ]
                 anonymized = f"Company-{hash_hex}"
 
             case _:  # Default case
+                # lgtm[py/weak-sensitive-data-hashing]
                 hash_hex = hashlib.sha256(
                     f"{self.seed}:{resource_type}:{original}".encode()
                 ).hexdigest()[:12]
@@ -221,18 +226,21 @@ class CloudMask:
 
     def _hash_to_account_id(self, original: str) -> str:
         """Generate 12-digit account ID."""
+        # lgtm[py/weak-sensitive-data-hashing]
         hash_obj = hashlib.sha256(f"{self.seed}:account:{original}".encode())
         hash_int = int(hash_obj.hexdigest()[:12], 16)
         return f"{hash_int % 1_000_000_000_000:012d}"  # Underscore separators
 
     def _hash_to_ip(self, original: str) -> str:
         """Generate IP address."""
+        # lgtm[py/weak-sensitive-data-hashing]
         hash_obj = hashlib.sha256(f"{self.seed}:ip:{original}".encode())
         hash_bytes = hash_obj.digest()[:4]
         return ".".join(str(b) for b in hash_bytes)
 
     def _hash_to_domain(self, original: str) -> str:
         """Generate domain name."""
+        # lgtm[py/weak-sensitive-data-hashing]
         hash_obj = hashlib.sha256(f"{self.seed}:domain:{original}".encode())
         hash_hex = hash_obj.hexdigest()[:12]
 
@@ -431,6 +439,7 @@ class CloudMask:
 
     def _build_mapping_payload(self) -> dict[str, Any]:
         """Build mapping payload with metadata."""
+        # lgtm[py/weak-sensitive-data-hashing]
         return {
             "_metadata": {
                 "seed_hash": hashlib.sha256(self.seed.encode()).hexdigest()[:16],
@@ -565,6 +574,7 @@ class CloudMask:
         if "_metadata" in data and "mappings" in data:
             mapping = data["mappings"]
             seed_hash = data["_metadata"].get("seed_hash")
+            # lgtm[py/weak-sensitive-data-hashing]
             current_seed_hash = hashlib.sha256(self.seed.encode()).hexdigest()[:16]
             if seed_hash != current_seed_hash:
                 raise MappingError(
