@@ -1,0 +1,78 @@
+name: Auto-merge dependency updates
+
+on: # yamllint disable-line rule:truthy
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted]
+  check_suite:
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: # yamllint disable-line rule:truthy 'PR number to merge'
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+
+    if: |
+      github.actor == 'dependabot[bot]' ||
+      github.actor == 'renovate[bot]'
+
+    steps:
+      - name: Check PR status
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.inputs?.pr_number ||
+                           context.payload.pull_request?.number ||
+                           context.issue.number;
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+
+            const { data: checks } = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: pr.head.sha
+            });
+
+            const allChecksPassed = checks.check_runs.every(
+              check => check.status === 'completed' && check.conclusion === 'success'
+            );
+
+            const isReady = allChecksPassed && pr.mergeable_state === 'clean';
+
+            core.setOutput('ready', isReady);
+            core.info(`Checks passed: ${allChecksPassed}, State: ${pr.mergeable_state}`);
+
+      - name: Merge PR
+        if: steps.check.outputs.ready == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request || (
+              await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number
+              })
+            ).data;
+
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              merge_method: 'squash'
+            });

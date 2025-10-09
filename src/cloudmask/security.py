@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 from pathlib import Path
+from typing import cast
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
@@ -38,7 +39,7 @@ def encrypt_mapping(mapping: dict[str, str], password: str) -> bytes:
     data = json.dumps(mapping).encode()
     encrypted = fernet.encrypt(data)
 
-    return salt + encrypted
+    return cast("bytes", salt + encrypted)
 
 
 def decrypt_mapping(encrypted_data: bytes, password: str) -> dict[str, str]:
@@ -56,7 +57,7 @@ def decrypt_mapping(encrypted_data: bytes, password: str) -> dict[str, str]:
 
     try:
         decrypted = fernet.decrypt(encrypted)
-        return json.loads(decrypted.decode())  # type: ignore[no-any-return]
+        return cast("dict[str, str]", json.loads(decrypted.decode()))
     except Exception as e:
         raise EncryptionError(
             "Decryption failed. Invalid password or corrupted data",
