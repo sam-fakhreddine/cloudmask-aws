@@ -7,7 +7,8 @@ on: # yamllint disable-line rule:truthy
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-
+    permissions:
+      id-token: write  # For trusted publishing
     steps:
     - uses: actions/checkout@v5
 
@@ -28,7 +29,4 @@ jobs:
       run: twine check dist/*
 
     - name: Publish to PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: twine upload dist/*
+      uses: pypa/gh-action-pypi-publish@release/v1
