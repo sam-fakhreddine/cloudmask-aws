@@ -4,6 +4,10 @@ on: # yamllint disable-line rule:truthy
   push:
     branches:
       - master
+    paths-ignore:
+      - 'pyproject.toml'
+      - 'src/cloudmask/__version__.py'
+      - 'CHANGELOG.md'
 
 permissions:
   contents: write

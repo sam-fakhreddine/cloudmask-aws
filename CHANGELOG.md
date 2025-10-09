@@ -7,14 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-01-XX
+
+### Fixed
+- Updated PyPI metadata to correctly show Python 3.10+ requirement (removed 3.7, 3.8, 3.9)
+
+## [0.1.0] - 2025-01-XX
+
 ### Added
 - Comprehensive test suite with 86%+ coverage
 - Security features: encrypted mapping files, rate limiting
 - Input validation for all user inputs
 - Extensive documentation with Sphinx
 - Pre-commit hooks and code quality tools
-
-## [0.1.0] - 2025-01-XX
 
 ### Added
 - Initial release
@@ -39,5 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Context manager support for temporary anonymization
 - Batch processing utilities
 
-[Unreleased]: https://github.com/samfakhreddine/cloudmask/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/samfakhreddine/cloudmask/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/samfakhreddine/cloudmask/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/samfakhreddine/cloudmask/releases/tag/v0.1.0

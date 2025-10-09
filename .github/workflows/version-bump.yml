@@ -1,0 +1,48 @@
+name: Version Bump
+
+on: # yamllint disable-line rule:truthy
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to bump to (e.g., 0.1.2)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Update version files
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        DATE=$(date +%Y-%m-%d)
+
+        # Update pyproject.toml
+        sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+
+        # Update __version__.py
+        sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" src/cloudmask/__version__.py
+
+        # Update CHANGELOG.md - replace date placeholder
+        sed -i "s/## \[$VERSION\] - .*-.*-.*/## [$VERSION] - $DATE/" CHANGELOG.md
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v7
+      with:
+        commit-message: "chore: bump version to ${{ github.event.inputs.version }} [skip ci]"
+        title: "chore: bump version to ${{ github.event.inputs.version }}"
+        body: |
+          Automated version bump to ${{ github.event.inputs.version }}
+
+          - Updated pyproject.toml
+          - Updated src/cloudmask/__version__.py
+          - Updated CHANGELOG.md
+        branch: version-bump-${{ github.event.inputs.version }}
+        labels: chore

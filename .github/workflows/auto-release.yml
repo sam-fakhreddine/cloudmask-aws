@@ -1,0 +1,75 @@
+name: Auto Release
+
+on: # yamllint disable-line rule:truthy
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      custom_version:
+        description: 'Or specify custom version (e.g., 0.2.0) - overrides version_type'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Calculate new version
+      id: version
+      run: |
+        CURRENT=$(grep -oP 'version = "\K[^"]+' pyproject.toml | head -1)
+
+        if [ -n "${{ github.event.inputs.custom_version }}" ]; then
+          NEW_VERSION="${{ github.event.inputs.custom_version }}"
+        else
+          IFS='.' read -r major minor patch <<< "$CURRENT"
+          case "${{ github.event.inputs.version_type }}" in
+            major) NEW_VERSION="$((major + 1)).0.0" ;;
+            minor) NEW_VERSION="$major.$((minor + 1)).0" ;;
+            patch) NEW_VERSION="$major.$minor.$((patch + 1))" ;;
+          esac
+        fi
+
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "Bumping from $CURRENT to $NEW_VERSION"
+
+    - name: Update version files
+      run: |
+        VERSION="${{ steps.version.outputs.new_version }}"
+        DATE=$(date +%Y-%m-%d)
+
+        sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+        sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" src/cloudmask/__version__.py
+        sed -i "s/## \[$VERSION\] - .*-.*-.*/## [$VERSION] - $DATE/" CHANGELOG.md
+
+    - name: Commit and push
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add pyproject.toml src/cloudmask/__version__.py CHANGELOG.md
+        git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }} [skip ci]"
+        git push
+
+    - name: Create and push tag
+      run: |
+        git tag "v${{ steps.version.outputs.new_version }}"
+        git push origin "v${{ steps.version.outputs.new_version }}"
