@@ -1,11 +1,8 @@
 name: Auto-merge dependency updates
 
 on: # yamllint disable-line rule:truthy
-  pull_request:
-    types: [opened, synchronize, reopened]
-  pull_request_review:
-    types: [submitted]
-  check_suite:
+  workflow_run:
+    workflows: ["Tests", "PR Checks"]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -21,10 +18,10 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-
     if: |
-      github.actor == 'dependabot[bot]' ||
-      github.actor == 'renovate[bot]'
+      github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.head_repository.full_name == github.repository) &&
+      (github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]')
 
     steps:
       - name: Check PR status
@@ -33,8 +30,8 @@ jobs:
         with:
           script: |
             const prNumber = context.payload.inputs?.pr_number ||
-                           context.payload.pull_request?.number ||
-                           context.issue.number;
+                          context.payload.pull_request?.number ||
+                          context.issue.number;
 
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
