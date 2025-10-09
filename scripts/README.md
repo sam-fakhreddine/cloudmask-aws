@@ -21,6 +21,7 @@ Development and maintenance scripts for CloudMask.
 
 - **`setup-github.sh`** - Configure GitHub repository protection and settings
 - **`add-secrets.sh`** - Add secrets to GitHub repository
+- **`setup-automerge.sh`** - Set up Dependabot automerge workflow
 
 ## Usage
 

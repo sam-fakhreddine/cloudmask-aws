@@ -1,8 +1,8 @@
 """Security utilities for CloudMask."""
 
 import base64
-import hashlib
 import json
+import os
 from pathlib import Path
 
 from cryptography.fernet import Fernet
@@ -31,10 +31,7 @@ def encrypt_mapping(mapping: dict[str, str], password: str) -> bytes:
             "Password must be at least 8 characters", "Use a strong password for encryption"
         )
 
-    # lgtm[py/weak-sensitive-data-hashing]
-    # SHA256 used only for deterministic salt generation, not password hashing.
-    # Actual password hashing is done by PBKDF2HMAC with 100k iterations.
-    salt = hashlib.sha256(password.encode()).digest()[:16]
+    salt = os.urandom(16)
     key = derive_key(password, salt)
     fernet = Fernet(key)
 
