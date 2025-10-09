@@ -1,5 +1,6 @@
 """Central storage management for CloudMask mappings."""
 
+import warnings
 from pathlib import Path
 
 
@@ -14,8 +15,15 @@ def get_storage_dir() -> Path:
     if not storage_dir.exists():
         storage_dir.mkdir(mode=0o700, parents=True)
     else:
-        # Ensure permissions are correct even if directory exists
-        storage_dir.chmod(0o700)
+        # Check permissions but don't force change
+        current_perms = storage_dir.stat().st_mode & 0o777
+        if current_perms != 0o700:
+            warnings.warn(
+                f"CloudMask storage directory '{storage_dir}' exists with permissions "
+                f"{oct(current_perms)}. "
+                "Consider setting to 700 for security: chmod 700 ~/.cloudmask",
+                stacklevel=2,
+            )
 
     return storage_dir
 
@@ -26,7 +34,7 @@ def ensure_secure_permissions(file_path: Path) -> None:
     Args:
         file_path: Path to the file to secure.
     """
-    if file_path.exists():
+    if file_path.exists() and file_path.is_file():
         file_path.chmod(0o600)
 
 

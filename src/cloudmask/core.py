@@ -7,7 +7,9 @@ __version__ = "0.1.0"
 
 import hashlib
 import json
+import os
 import re
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,6 +21,7 @@ from .cache import LRUCache
 from .exceptions import ConfigurationError, FileOperationError, MappingError, ValidationError
 from .logging import log_operation, logger
 from .patterns import AWS_ACCOUNT_PATTERN, AWS_RESOURCE_PATTERN, get_aws_patterns, is_valid_ip
+from .storage import ensure_secure_permissions
 
 # ============================================================
 # Modern Type Hints (Python 3.10+)
@@ -426,20 +429,9 @@ class CloudMask:
         )
         return len(self.mapping)
 
-    def save_mapping(self, filepath: Path | str, merge: bool = True) -> None:
-        """Save mapping to JSON file with secure permissions and seed tracking.
-
-        Args:
-            filepath: Path to save mapping file
-            merge: If True and file exists, merge with existing mappings (default: True)
-        """
-        from .storage import ensure_secure_permissions
-
-        filepath = Path(filepath) if isinstance(filepath, str) else filepath
-        logger.debug(f"Saving mapping to {filepath}")
-
-        # Prepare data with metadata
-        data = {
+    def _build_mapping_payload(self) -> dict[str, Any]:
+        """Build mapping payload with metadata."""
+        return {
             "_metadata": {
                 "seed_hash": hashlib.sha256(self.seed.encode()).hexdigest()[:16],
                 "version": "1.0",
@@ -447,48 +439,96 @@ class CloudMask:
             "mappings": self.mapping,
         }
 
-        # Load and merge existing mappings if enabled
-        if merge and filepath.exists():
-            try:
-                existing = json.loads(filepath.read_text(encoding="utf-8"))
+    def _merge_existing_mappings(self, filepath: Path, payload: dict[str, Any]) -> None:
+        """Merge existing mappings if file exists."""
+        try:
+            if not filepath.exists():
+                return
+        except (OSError, PermissionError):
+            # Can't check if file exists (e.g., permission denied)
+            return
 
-                # Handle old format (plain dict) or new format (with metadata)
-                if "_metadata" in existing:
-                    existing_seed_hash = existing["_metadata"].get("seed_hash")
-                    if existing_seed_hash != data["_metadata"]["seed_hash"]:
-                        raise MappingError(
-                            "Cannot merge mappings created with different seeds",
-                            f"Existing seed hash: {existing_seed_hash}, current: {data['_metadata']['seed_hash']}",
-                        )
-                    # Merge mappings
-                    existing_mappings = existing.get("mappings", {})
-                    data["mappings"] = {**existing_mappings, **self.mapping}
-                    logger.debug(f"Merged {len(existing_mappings)} existing mappings")
-                else:
-                    # Old format - can't verify seed, warn user
-                    logger.warning(
-                        "Existing mapping has no seed metadata, cannot verify compatibility"
+        try:
+            existing = json.loads(filepath.read_text(encoding="utf-8"))
+
+            # Handle old format (plain dict) or new format (with metadata)
+            if "_metadata" in existing:
+                existing_seed_hash = existing["_metadata"].get("seed_hash")
+                if existing_seed_hash != payload["_metadata"]["seed_hash"]:
+                    raise MappingError(
+                        "Cannot merge mappings created with different seeds",
+                        f"Existing seed hash: {existing_seed_hash}, current: {payload['_metadata']['seed_hash']}",
                     )
-                    data["mappings"] = {**existing, **self.mapping}
+                # Merge mappings
+                existing_mappings = existing.get("mappings", {})
+                payload["mappings"] = {**existing_mappings, **self.mapping}
+                logger.debug(f"Merged {len(existing_mappings)} existing mappings")
+            else:
+                # Old format - can't verify seed, warn user
+                logger.warning("Existing mapping has no seed metadata, cannot verify compatibility")
+                payload["mappings"] = {**existing, **self.mapping}
 
-            except (json.JSONDecodeError, OSError) as e:
-                logger.warning(f"Could not load existing mapping, will overwrite: {e}")
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Could not load existing mapping, will overwrite: {e}")
 
-        if len(data["mappings"]) > 1_000_000:
+    def _write_mapping_atomically(self, filepath: Path, data: dict[str, Any]) -> None:
+        """Write mapping file atomically with secure permissions."""
+        # Write to temporary file first
+        temp_fd, temp_path = tempfile.mkstemp(
+            dir=filepath.parent, prefix=".cloudmask_", suffix=".tmp"
+        )
+        temp_file = Path(temp_path)
+
+        try:
+            # Write data to temp file
+            with temp_file.open("w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            # Close the file descriptor
+            os.close(temp_fd)
+
+            # Set secure permissions on temp file
+            ensure_secure_permissions(temp_file)
+
+            # Atomic rename
+            temp_file.replace(filepath)
+        except Exception:
+            # Clean up temp file on error
+            temp_file.unlink(missing_ok=True)
+            raise
+
+    def save_mapping(self, filepath: Path | str, merge: bool = True) -> None:
+        """Save mapping to JSON file with secure permissions and seed tracking.
+
+        Args:
+            filepath: Path to save mapping file
+            merge: If True and file exists, merge with existing mappings (default: True)
+        """
+        filepath = Path(filepath) if isinstance(filepath, str) else filepath
+        logger.debug(f"Saving mapping to {filepath}")
+
+        # Build payload with metadata
+        payload = self._build_mapping_payload()
+
+        # Merge with existing mappings if enabled
+        if merge:
+            self._merge_existing_mappings(filepath, payload)
+
+        # Validate size
+        if len(payload["mappings"]) > 1_000_000:
             raise MappingError(
-                f"Mapping too large ({len(data['mappings'])} entries, max 1M)",
+                f"Mapping too large ({len(payload['mappings'])} entries, max 1M)",
                 "Process data in smaller batches",
             )
 
+        # Write atomically
         try:
-            filepath.write_text(json.dumps(data, indent=2), encoding="utf-8")
-            ensure_secure_permissions(filepath)
+            self._write_mapping_atomically(filepath, payload)
         except OSError as e:
             raise FileOperationError(
                 f"Cannot write mapping file: {e}", "Check file permissions and disk space"
             ) from e
 
-        log_operation("mapping_saved", path=str(filepath), entries=len(data["mappings"]))
+        log_operation("mapping_saved", path=str(filepath), entries=len(payload["mappings"]))
 
     def load_mapping(self, filepath: Path | str) -> None:
         """Load mapping from JSON file."""

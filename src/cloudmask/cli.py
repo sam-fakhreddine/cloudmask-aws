@@ -103,7 +103,7 @@ Examples:
         "-m",
         "--mapping",
         type=Path,
-        help="Output file for mapping (default: ~/.cloudmask/mapping.json)",
+        help="Output file for mapping (default: ~/.cloudmask/mapping.json). If file exists, new mappings will be merged.",
     )
     anon_parser.add_argument("-c", "--config", type=Path, help="Config file (YAML/JSON/TOML)")
     anon_parser.add_argument(
