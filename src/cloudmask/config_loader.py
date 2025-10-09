@@ -15,7 +15,7 @@ if sys.version_info >= (3, 11):
     import tomllib  # type: ignore[import-not-found]
 else:
     try:
-        import tomli as tomllib  # type: ignore[import-not-found]
+        import tomli as tomllib  # type: ignore[import-not-found,unused-ignore]
     except ImportError:
         tomllib = None  # type: ignore[assignment,unused-ignore]
 
@@ -81,7 +81,7 @@ def load_from_toml(path: Path) -> dict[str, Any]:
     if "cloudmask" in data:
         return data["cloudmask"]  # type: ignore[no-any-return]
 
-    return data  # type: ignore[no-any-return]
+    return data  # type: ignore[no-any-return,unused-ignore]
 
 
 def load_config(
