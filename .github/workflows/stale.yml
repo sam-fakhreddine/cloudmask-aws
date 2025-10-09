@@ -2,7 +2,7 @@ name: Mark Stale Issues and PRs
 
 on: # yamllint disable-line rule:truthy
   schedule:
-    - cron: # yamllint disable-line rule:truthy '0 0 * * *'  # Daily at midnight
+    - cron: '0 0 * * *'  # Daily at midnight
   workflow_dispatch:
 
 permissions:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   stale:
-    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/stale@v10
         with:

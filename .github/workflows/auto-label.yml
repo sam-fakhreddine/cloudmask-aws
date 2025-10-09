@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   label:
-    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/labeler@v6
         if: github.event_name == 'pull_request'

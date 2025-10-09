@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:

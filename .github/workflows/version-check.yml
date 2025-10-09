@@ -10,7 +10,7 @@ on: # yamllint disable-line rule:truthy
 
 jobs:
   check-version: # yamllint disable-line rule:truthy
-    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4

@@ -7,7 +7,7 @@ on: # yamllint disable-line rule:truthy
 jobs:
   pr-title:
     name: Validate PR Title
-    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Check PR title format
         uses: amannn/action-semantic-pull-request@v5
@@ -29,7 +29,7 @@ jobs:
 
   pr-size:
     name: Check PR Size
-    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,7 +53,7 @@ jobs:
 
   conflict-check:
     name: Check for Merge Conflicts
-    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,7 +70,7 @@ jobs:
 
   security-scan:
     name: Security Scan
-    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 

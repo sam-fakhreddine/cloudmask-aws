@@ -6,7 +6,7 @@ on: # yamllint disable-line rule:truthy
 
 jobs:
   build-and-publish:
-    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3

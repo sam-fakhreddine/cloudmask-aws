@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   update_release_draft:
-    runs-on: # yamllint disable-line rule:truthy ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: release-drafter/release-drafter@v6
         env:
