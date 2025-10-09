@@ -1,6 +1,6 @@
 name: Version Check
 
-on:
+on: # yamllint disable-line rule:truthy
   pull_request:
     branches: [main]
     paths:

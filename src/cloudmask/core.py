@@ -347,6 +347,7 @@ class CloudMask:
 
         # IP addresses (if enabled)
         if self.config.anonymize_ips:
+
             def anonymize_ip(m: re.Match[str]) -> str:
                 ip = m.group(0)
                 # Only anonymize valid IPs
