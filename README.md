@@ -2,12 +2,12 @@
 
 <img src="logo.png" alt="CloudMask Logo" width="200"/>
 
-# CloudMask 🎭
+# CloudMask-AWS 🎭
 
 **Anonymize AWS infrastructure identifiers for secure LLM processing**
 
-[![PyPI version](https://badge.fury.io/py/cloudmask.svg)](https://badge.fury.io/py/cloudmask)
-[![Python Versions](https://img.shields.io/pypi/pyversions/cloudmask.svg)](https://pypi.org/project/cloudmask/)
+[![PyPI version](https://badge.fury.io/py/cloudmask-aws.svg)](https://badge.fury.io/py/cloudmask-aws)
+[![Python Versions](https://img.shields.io/pypi/pyversions/cloudmask-aws.svg)](https://pypi.org/project/cloudmask-aws/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
@@ -35,7 +35,7 @@ CloudMask leverages modern Python features including structural pattern matching
 ## Installation
 
 ```bash
-pip install cloudmask
+pip install cloudmask-aws
 ```
 
 ## Quick Start
@@ -193,7 +193,7 @@ result2 = anon("i-456")
 
 ## Contributing
 
-Contributions welcome! Please check out the [GitHub repository](https://github.com/yourusername/cloudmask).
+Contributions welcome! Please check out the [GitHub repository](https://github.com/sam-fakhreddine/cloudmask-aws).
 
 ## License
 
@@ -201,6 +201,6 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- 📖 [Documentation](https://github.com/yourusername/cloudmask#readme)
-- 🐛 [Issue Tracker](https://github.com/yourusername/cloudmask/issues)
-- 💬 [Discussions](https://github.com/yourusername/cloudmask/discussions)
+- 📖 [Documentation](https://github.com/sam-fakhreddine/cloudmask-aws#readme)
+- 🐛 [Issue Tracker](https://github.com/sam-fakhreddine/cloudmask-aws/issues)
+- 💬 [Discussions](https://github.com/sam-fakhreddine/cloudmask-aws/discussions)

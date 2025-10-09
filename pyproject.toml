@@ -71,12 +71,12 @@ performance = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/samfakhreddine/cloudmask"
-Documentation = "https://cloudmask.readthedocs.io"
-Repository = "https://github.com/samfakhreddine/cloudmask"
-"Bug Tracker" = "https://github.com/samfakhreddine/cloudmask/issues"
-"Changelog" = "https://github.com/samfakhreddine/cloudmask/blob/main/CHANGELOG.md"
-"Source Code" = "https://github.com/samfakhreddine/cloudmask"
+Homepage = "https://github.com/sam-fakhreddine/cloudmask-aws"
+Documentation = "https://github.com/sam-fakhreddine/cloudmask-aws#readme"
+Repository = "https://github.com/sam-fakhreddine/cloudmask-aws"
+"Bug Tracker" = "https://github.com/sam-fakhreddine/cloudmask-aws/issues"
+"Changelog" = "https://github.com/sam-fakhreddine/cloudmask-aws/blob/main/CHANGELOG.md"
+"Source Code" = "https://github.com/sam-fakhreddine/cloudmask-aws"
 
 [project.scripts]
 cloudmask = "cloudmask.cli:main"
