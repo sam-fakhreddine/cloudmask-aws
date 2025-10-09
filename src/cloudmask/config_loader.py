@@ -17,7 +17,7 @@ else:
     try:
         import tomli as tomllib  # type: ignore[import-not-found]
     except ImportError:
-        tomllib = None
+        tomllib = None  # type: ignore[assignment,unused-ignore]
 
 
 def load_from_env() -> dict[str, Any]:
