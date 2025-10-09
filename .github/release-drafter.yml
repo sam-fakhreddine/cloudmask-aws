@@ -1,6 +1,32 @@
 name-template: 'v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
 
+autolabeler:
+  - label: 'breaking'
+    title:
+      - '/^(\w+)(\(\w+\))?!:/'
+  - label: 'feat'
+    title:
+      - '/^feat(\(\w+\))?:/'
+  - label: 'fix'
+    title:
+      - '/^fix(\(\w+\))?:/'
+  - label: 'docs'
+    title:
+      - '/^docs(\(\w+\))?:/'
+  - label: 'test'
+    title:
+      - '/^test(\(\w+\))?:/'
+  - label: 'chore'
+    title:
+      - '/^chore(\(\w+\))?:/'
+  - label: 'perf'
+    title:
+      - '/^perf(\(\w+\))?:/'
+  - label: 'security'
+    title:
+      - '/^security(\(\w+\))?:/'
+
 categories:
   - title: '🚀 Features'
     labels:
