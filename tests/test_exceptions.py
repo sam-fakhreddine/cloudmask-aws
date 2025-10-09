@@ -7,6 +7,7 @@ from cloudmask import (
     CloudMaskError,
     Config,
     ConfigurationError,
+    CustomPattern,
     FileOperationError,
     MappingError,
     ValidationError,
@@ -31,8 +32,6 @@ def test_exception_without_suggestion():
 
 def test_invalid_regex_raises_validation_error():
     """Test that invalid regex raises ValidationError."""
-    from cloudmask.core import CustomPattern
-
     with pytest.raises(ValidationError) as exc_info:
         CustomPattern(pattern="[invalid(", name="test")
 

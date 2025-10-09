@@ -3,6 +3,7 @@
 import pytest
 
 from cloudmask import CloudMask, CloudUnmask
+from cloudmask.exceptions import FileOperationError
 from cloudmask.streaming import stream_anonymize_file, stream_unanonymize_file
 
 
@@ -81,8 +82,6 @@ class TestStreaming:
 
     def test_stream_nonexistent_file(self, tmp_path):
         """Test streaming with nonexistent file."""
-        from cloudmask.exceptions import FileOperationError
-
         input_file = tmp_path / "nonexistent.txt"
         output_file = tmp_path / "output.txt"
 

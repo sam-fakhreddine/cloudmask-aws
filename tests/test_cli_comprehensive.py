@@ -7,6 +7,7 @@ import pytest
 
 from cloudmask import CloudMask
 from cloudmask.cli import main
+from cloudmask.security import save_encrypted_mapping
 
 
 class TestCLICommands:
@@ -146,8 +147,6 @@ class TestCLICommands:
 
     def test_unanonymize_with_encrypted_mapping(self, tmp_path):
         """Test unanonymize with encrypted mapping."""
-        from cloudmask.security import save_encrypted_mapping
-
         input_file = tmp_path / "input.txt"
         output_file = tmp_path / "output.txt"
         mapping_file = tmp_path / "mapping.bin"
@@ -202,8 +201,6 @@ class TestCLICommands:
 
     def test_validate_encrypted_mapping(self, tmp_path):
         """Test validate command with encrypted mapping."""
-        from cloudmask.security import save_encrypted_mapping
-
         mapping_file = tmp_path / "mapping.bin"
         mapping = {"vpc-123": "vpc-abc"}
         save_encrypted_mapping(mapping, mapping_file, "test-password-123")
@@ -326,8 +323,6 @@ class TestCLICommands:
 
     def test_stats_with_encrypted_mapping(self, tmp_path):
         """Test stats with encrypted mapping."""
-        from cloudmask.security import save_encrypted_mapping
-
         mapping_file = tmp_path / "mapping.bin"
         mapping = {"vpc-123": "vpc-abc"}
         save_encrypted_mapping(mapping, mapping_file, "test-password-123")

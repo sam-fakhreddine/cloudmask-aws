@@ -1,5 +1,7 @@
 """Edge case tests for CloudMask."""
 
+import tempfile
+
 from cloudmask import CloudMask, CloudUnmask, Config, CustomPattern, anonymize_dict
 
 
@@ -261,8 +263,6 @@ class TestEdgeCases:
         """Test mapping file with Unicode content."""
         mask = CloudMask(seed="test")
         mask.anonymize("vpc-123 café 🚀")
-
-        import tempfile
 
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
             mask.save_mapping(f.name)

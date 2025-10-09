@@ -12,7 +12,7 @@ from .core import Config, CustomPattern
 from .exceptions import ConfigurationError
 
 if sys.version_info >= (3, 11):
-    import tomllib
+    import tomllib  # type: ignore[import-not-found]
 else:
     try:
         import tomli as tomllib  # type: ignore[import-not-found]

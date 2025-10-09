@@ -18,7 +18,7 @@ import yaml
 from .cache import LRUCache
 from .exceptions import ConfigurationError, FileOperationError, MappingError, ValidationError
 from .logging import log_operation, logger
-from .patterns import AWS_ACCOUNT_PATTERN, AWS_RESOURCE_PATTERN, get_aws_patterns
+from .patterns import AWS_ACCOUNT_PATTERN, AWS_RESOURCE_PATTERN, get_aws_patterns, is_valid_ip
 
 # ============================================================
 # Modern Type Hints (Python 3.10+)
@@ -347,8 +347,6 @@ class CloudMask:
 
         # IP addresses (if enabled)
         if self.config.anonymize_ips:
-            from .patterns import is_valid_ip
-
             def anonymize_ip(m: re.Match[str]) -> str:
                 ip = m.group(0)
                 # Only anonymize valid IPs

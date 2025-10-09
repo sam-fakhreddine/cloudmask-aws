@@ -1,5 +1,7 @@
 """Tests for security features."""
 
+import time
+
 import pytest
 
 from cloudmask import (
@@ -88,8 +90,6 @@ class TestRateLimiting:
         limiter.acquire()
 
         # This should wait and then succeed
-        import time
-
         start = time.time()
         limiter.wait()
         duration = time.time() - start

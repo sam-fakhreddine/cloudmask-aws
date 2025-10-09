@@ -1,5 +1,8 @@
 """Test suite for CloudMask."""
 
+import os
+import re
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -56,8 +59,6 @@ class TestCloudMask:
         assert "123456789012" not in result
         assert result.count("Account: ") == 1
         # Should be a 12-digit number
-        import re
-
         match = re.search(r"Account: (\d{12})", result)
         assert match is not None
 
@@ -292,13 +293,9 @@ class TestCLIClipboard:
     @patch("sys.argv", ["cloudmask", "anonymize", "--clipboard", "-m", "mapping.json"])
     def test_anonymize_clipboard(self, mock_pyperclip, tmp_path):
         """Test clipboard anonymization."""
-        from pathlib import Path
-
         mock_pyperclip.paste.return_value = "Instance i-123 in vpc-456"
 
         # Change to temp directory for mapping file
-        import os
-
         old_cwd = Path.cwd()
         os.chdir(tmp_path)
 
@@ -318,8 +315,6 @@ class TestCLIClipboard:
     @patch("sys.argv", ["cloudmask", "unanonymize", "--clipboard", "-m", "mapping.json"])
     def test_unanonymize_clipboard(self, mock_pyperclip, tmp_path):
         """Test clipboard unanonymization."""
-        from pathlib import Path
-
         # First create a mapping
         mapping_file = tmp_path / "mapping.json"
         mask = CloudMask(seed="test-seed")
@@ -328,8 +323,6 @@ class TestCLIClipboard:
         mask.save_mapping(mapping_file)
 
         mock_pyperclip.paste.return_value = anonymized
-
-        import os
 
         old_cwd = Path.cwd()
         os.chdir(tmp_path)
