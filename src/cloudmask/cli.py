@@ -5,295 +5,116 @@ import argparse
 import sys
 from pathlib import Path
 
-try:
-    import pyperclip
-
-    CLIPBOARD_AVAILABLE = True
-except ImportError:
-    CLIPBOARD_AVAILABLE = False
-
-from .config_loader import load_config, validate_config
-from .config_templates import list_templates, save_template
-from .core import CloudMask, CloudUnmask
-from .exceptions import ClipboardError, CloudMaskError
+from .cli_handlers import (
+    handle_anonymize,
+    handle_batch,
+    handle_init_config,
+    handle_stats,
+    handle_unanonymize,
+    handle_validate,
+)
+from .exceptions import CloudMaskError
 from .logging import log_error, setup_logging
-from .security import load_encrypted_mapping, save_encrypted_mapping
-from .storage import get_default_config_path, get_default_mapping_path, get_storage_dir
-from .streaming import stream_anonymize_file, stream_unanonymize_file
 
 
-def main() -> int:
-    """Main CLI entry point."""
+def create_parser() -> argparse.ArgumentParser:
+    """Create argument parser."""
     parser = argparse.ArgumentParser(
         prog="cloudmask",
         description="Anonymize AWS infrastructure identifiers for LLM processing",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Generate default config file
   cloudmask init-config -c config.yaml
-
-  # Anonymize a file with config
-  cloudmask anonymize -i input.txt -o anonymized.txt -m mapping.json -c config.yaml
-
-  # Anonymize clipboard content (uses ~/.cloudmask/mapping.json by default)
-  cloudmask anonymize --clipboard -s "custom-seed"
-
-  # Unanonymize a file (uses ~/.cloudmask/mapping.json by default)
+  cloudmask anonymize -i input.txt -o anonymized.txt
+  cloudmask anonymize --clipboard
   cloudmask unanonymize -i anonymized.txt -o output.txt
-
-  # Unanonymize clipboard content (uses ~/.cloudmask/mapping.json by default)
-  cloudmask unanonymize --clipboard
         """,
     )
 
-    # Global options
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug mode with verbose logging",
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Enable verbose output",
-    )
-    parser.add_argument(
-        "--log-file",
-        type=Path,
-        help="Write logs to file",
-    )
-    parser.add_argument(
-        "-q",
-        "--quiet",
-        action="store_true",
-        help="Suppress non-error output",
-    )
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument("--log-file", type=Path, help="Write logs to file")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Suppress non-error output")
 
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
-    # Init config command
+    # Init config
     init_parser = subparsers.add_parser("init-config", help="Generate default config file")
-    init_parser.add_argument(
-        "-c",
-        "--config",
-        type=Path,
-        default="cloudmask.yaml",
-        help="Config file path (default: cloudmask.yaml)",
-    )
-    init_parser.add_argument(
-        "-t",
-        "--template",
-        choices=list_templates(),
-        default="standard",
-        help="Configuration template to use",
-    )
-    init_parser.add_argument(
-        "--list-templates",
-        action="store_true",
-        help="List available templates",
-    )
+    init_parser.add_argument("-c", "--config", type=Path, default="cloudmask.yaml")
+    init_parser.add_argument("-t", "--template", default="standard")
+    init_parser.add_argument("--list-templates", action="store_true")
 
-    # Anonymize command
+    # Anonymize
     anon_parser = subparsers.add_parser("anonymize", help="Anonymize AWS identifiers")
-    anon_parser.add_argument("-i", "--input", type=Path, help="Input file to anonymize")
-    anon_parser.add_argument("-o", "--output", type=Path, help="Output file for anonymized content")
-    anon_parser.add_argument(
-        "-m",
-        "--mapping",
-        type=Path,
-        help="Output file for mapping (default: ~/.cloudmask/mapping.json). If file exists, new mappings will be merged.",
-    )
-    anon_parser.add_argument("-c", "--config", type=Path, help="Config file (YAML/JSON/TOML)")
-    anon_parser.add_argument(
-        "--format",
-        choices=["yaml", "json", "toml"],
-        help="Config file format (auto-detected if not specified)",
-    )
-    anon_parser.add_argument(
-        "--no-env",
-        action="store_true",
-        help="Don't load configuration from environment variables",
-    )
-    anon_parser.add_argument(
-        "-s", "--seed", help="Seed for deterministic anonymization (overrides config)"
-    )
-    anon_parser.add_argument(
-        "--clipboard",
-        action="store_true",
-        help="Read from clipboard and write anonymized result back to clipboard",
-    )
-    anon_parser.add_argument(
-        "--encrypt",
-        action="store_true",
-        help="Encrypt mapping file with password",
-    )
-    anon_parser.add_argument(
-        "--password",
-        help="Password for encrypted mapping (prompted if not provided)",
-    )
-    anon_parser.add_argument(
-        "--stream",
-        action="store_true",
-        help="Use streaming mode for large files (memory efficient)",
-    )
-    anon_parser.add_argument(
-        "--progress",
-        action="store_true",
-        help="Show progress bar during processing",
-    )
+    anon_parser.add_argument("-i", "--input", type=Path)
+    anon_parser.add_argument("-o", "--output", type=Path)
+    anon_parser.add_argument("-m", "--mapping", type=Path)
+    anon_parser.add_argument("-c", "--config", type=Path)
+    anon_parser.add_argument("--format", choices=["yaml", "json", "toml"])
+    anon_parser.add_argument("--no-env", action="store_true")
+    anon_parser.add_argument("-s", "--seed")
+    anon_parser.add_argument("--clipboard", action="store_true")
+    anon_parser.add_argument("--encrypt", action="store_true")
+    anon_parser.add_argument("--password")
+    anon_parser.add_argument("--stream", action="store_true")
+    anon_parser.add_argument("--progress", action="store_true")
 
-    # Unanonymize command
+    # Unanonymize
     unanon_parser = subparsers.add_parser("unanonymize", help="Restore original identifiers")
-    unanon_parser.add_argument("-i", "--input", type=Path, help="Input file to unanonymize")
-    unanon_parser.add_argument(
-        "-o", "--output", type=Path, help="Output file for unanonymized content"
-    )
-    unanon_parser.add_argument(
-        "-m",
-        "--mapping",
-        type=Path,
-        help="Mapping file (default: ~/.cloudmask/mapping.json)",
-    )
-    unanon_parser.add_argument(
-        "--clipboard",
-        action="store_true",
-        help="Read from clipboard and write unanonymized result back to clipboard",
-    )
-    unanon_parser.add_argument(
-        "--encrypted",
-        action="store_true",
-        help="Mapping file is encrypted",
-    )
-    unanon_parser.add_argument(
-        "--password",
-        help="Password for encrypted mapping (prompted if not provided)",
-    )
-    unanon_parser.add_argument(
-        "--stream",
-        action="store_true",
-        help="Use streaming mode for large files (memory efficient)",
-    )
-    unanon_parser.add_argument(
-        "--progress",
-        action="store_true",
-        help="Show progress bar during processing",
-    )
+    unanon_parser.add_argument("-i", "--input", type=Path)
+    unanon_parser.add_argument("-o", "--output", type=Path)
+    unanon_parser.add_argument("-m", "--mapping", type=Path)
+    unanon_parser.add_argument("--clipboard", action="store_true")
+    unanon_parser.add_argument("--encrypted", action="store_true")
+    unanon_parser.add_argument("--password")
+    unanon_parser.add_argument("--stream", action="store_true")
+    unanon_parser.add_argument("--progress", action="store_true")
 
-    # Validate command
-    validate_parser = subparsers.add_parser(
-        "validate", help="Validate configuration or mapping file"
-    )
-    validate_parser.add_argument(
-        "-c",
-        "--config",
-        type=Path,
-        help="Config file to validate",
-    )
-    validate_parser.add_argument(
-        "-m",
-        "--mapping",
-        type=Path,
-        help="Mapping file to validate",
-    )
-    validate_parser.add_argument(
-        "--format",
-        choices=["yaml", "json", "toml"],
-        help="Config file format",
-    )
-    validate_parser.add_argument(
-        "--encrypted",
-        action="store_true",
-        help="Mapping file is encrypted",
-    )
-    validate_parser.add_argument(
-        "--password",
-        help="Password for encrypted mapping",
-    )
+    # Validate
+    validate_parser = subparsers.add_parser("validate", help="Validate configuration or mapping")
+    validate_parser.add_argument("-c", "--config", type=Path)
+    validate_parser.add_argument("-m", "--mapping", type=Path)
+    validate_parser.add_argument("--format", choices=["yaml", "json", "toml"])
+    validate_parser.add_argument("--encrypted", action="store_true")
+    validate_parser.add_argument("--password")
 
-    # Batch command
+    # Batch
     batch_parser = subparsers.add_parser("batch", help="Batch process multiple files")
-    batch_parser.add_argument(
-        "files",
-        nargs="+",
-        type=Path,
-        help="Files to process",
-    )
-    batch_parser.add_argument(
-        "-o",
-        "--output-dir",
-        required=True,
-        type=Path,
-        help="Output directory for processed files",
-    )
-    batch_parser.add_argument(
-        "-m",
-        "--mapping",
-        type=Path,
-        help="Mapping file (shared across all files)",
-    )
-    batch_parser.add_argument(
-        "-c",
-        "--config",
-        type=Path,
-        help="Config file",
-    )
-    batch_parser.add_argument(
-        "-s",
-        "--seed",
-        help="Seed for deterministic anonymization",
-    )
-    batch_parser.add_argument(
-        "--encrypt",
-        action="store_true",
-        help="Encrypt mapping file",
-    )
-    batch_parser.add_argument(
-        "--password",
-        help="Password for encrypted mapping",
-    )
-    batch_parser.add_argument(
-        "--progress",
-        action="store_true",
-        help="Show progress bar",
-    )
+    batch_parser.add_argument("files", nargs="+", type=Path)
+    batch_parser.add_argument("-o", "--output-dir", required=True, type=Path)
+    batch_parser.add_argument("-m", "--mapping", type=Path)
+    batch_parser.add_argument("-c", "--config", type=Path)
+    batch_parser.add_argument("-s", "--seed")
+    batch_parser.add_argument("--encrypt", action="store_true")
+    batch_parser.add_argument("--password")
+    batch_parser.add_argument("--progress", action="store_true")
 
-    # Stats command
+    # Stats
     stats_parser = subparsers.add_parser("stats", help="Show statistics about anonymization")
-    stats_parser.add_argument(
-        "-m",
-        "--mapping",
-        required=True,
-        type=Path,
-        help="Mapping file to analyze",
-    )
-    stats_parser.add_argument(
-        "--encrypted",
-        action="store_true",
-        help="Mapping file is encrypted",
-    )
-    stats_parser.add_argument(
-        "--password",
-        help="Password for encrypted mapping",
-    )
-    stats_parser.add_argument(
-        "--detailed",
-        action="store_true",
-        help="Show detailed statistics",
-    )
+    stats_parser.add_argument("-m", "--mapping", required=True, type=Path)
+    stats_parser.add_argument("--encrypted", action="store_true")
+    stats_parser.add_argument("--password")
+    stats_parser.add_argument("--detailed", action="store_true")
 
+    return parser
+
+
+def main() -> int:
+    """Main CLI entry point."""
+    parser = create_parser()
     args = parser.parse_args()
 
     # Setup logging
-    if args.quiet:
-        log_level = "ERROR"
-    elif args.debug:
-        log_level = "DEBUG"
-    elif hasattr(args, "verbose") and args.verbose:
-        log_level = "INFO"
-    else:
-        log_level = "WARNING"
+    log_level = (
+        "ERROR"
+        if args.quiet
+        else (
+            "DEBUG"
+            if args.debug
+            else "INFO" if hasattr(args, "verbose") and args.verbose else "WARNING"
+        )
+    )
     setup_logging(level=log_level, log_file=args.log_file, debug=args.debug)
 
     if not args.command:
@@ -301,387 +122,22 @@ Examples:
         return 0
 
     try:
-        if args.command == "init-config":
-            if args.list_templates:
-                print("Available templates:")
-                for template in list_templates():
-                    print(f"  - {template}")
-                return 0
+        handlers = {
+            "init-config": handle_init_config,
+            "anonymize": handle_anonymize,
+            "unanonymize": handle_unanonymize,
+            "validate": handle_validate,
+            "batch": handle_batch,
+            "stats": handle_stats,
+        }
 
-            save_template(args.template, args.config)
-            print(f"✓ Config file created from '{args.template}' template: {args.config}")
-            print("\nEdit this file to customize your configuration.")
-            print(f"\nMappings will be stored in: {get_storage_dir()}")
-            return 0
-
-        if args.command == "anonymize":
-            if args.clipboard and not CLIPBOARD_AVAILABLE:
-                print(
-                    "Error: pyperclip not available. Install with: pip install pyperclip",
-                    file=sys.stderr,
-                )
-                return 1
-
-            if args.clipboard and (args.input or args.output):
-                print(
-                    "Error: --clipboard cannot be used with -i/--input or -o/--output",
-                    file=sys.stderr,
-                )
-                return 1
-
-            if not args.clipboard and (not args.input or not args.output):
-                print(
-                    "Error: -i/--input and -o/--output are required when not using --clipboard",
-                    file=sys.stderr,
-                )
-                return 1
-
-            # Load config
-            config_path = args.config or get_default_config_path()
-            config = (
-                load_config(config_path, format=args.format, use_env=not args.no_env)
-                if config_path
-                else load_config(use_env=not args.no_env)
-            )
-
-            # Override seed if provided
-            if args.seed:
-                config.seed = args.seed
-
-            # Create anonymizer
-            mask = CloudMask(config)
-
-            if args.clipboard:
-                # Read from clipboard
-                try:
-                    text = pyperclip.paste()
-                except Exception as e:
-                    raise ClipboardError(
-                        f"Cannot access clipboard: {e}",
-                        "Ensure clipboard access is available on your system",
-                    ) from e
-
-                if not text.strip():
-                    raise ClipboardError(
-                        "Clipboard is empty",
-                        "Copy some text to clipboard before running this command",
-                    )
-
-                # Anonymize
-                anonymized = mask.anonymize(text)
-
-                # Write back to clipboard
-                try:
-                    pyperclip.copy(anonymized)
-                except Exception as e:
-                    raise ClipboardError(
-                        f"Cannot write to clipboard: {e}",
-                        "Ensure clipboard access is available on your system",
-                    ) from e
-
-                # Save mapping (use default if not specified)
-                mapping_path = args.mapping or get_default_mapping_path()
-                if args.encrypt:
-                    import getpass
-
-                    password = args.password or getpass.getpass("Enter password for mapping: ")
-                    save_encrypted_mapping(mask.mapping, mapping_path, password)
-                    if not args.quiet:
-                        print(f"✓ Encrypted mapping saved to: {mapping_path}")
-                else:
-                    mask.save_mapping(mapping_path)
-                    if not args.quiet:
-                        print(f"✓ Mapping saved to: {mapping_path}")
-
-                if not args.quiet:
-                    print(
-                        f"✓ Anonymized clipboard content ({len(mask.mapping)} unique identifiers)"
-                    )
-                return 0
-            else:
-                # File-based processing
-                if args.stream:
-                    count = stream_anonymize_file(
-                        mask, args.input, args.output, show_progress=args.progress
-                    )
-                else:
-                    count = mask.anonymize_file(args.input, args.output)
-
-                # Save mapping (use default if not specified)
-                mapping_path = args.mapping or get_default_mapping_path()
-                if args.encrypt:
-                    import getpass
-
-                    password = args.password or getpass.getpass("Enter password for mapping: ")
-                    save_encrypted_mapping(mask.mapping, mapping_path, password)
-                    if not args.quiet:
-                        print(f"✓ Encrypted mapping saved to: {mapping_path}")
-                else:
-                    mask.save_mapping(mapping_path)
-                    if not args.quiet:
-                        print(f"✓ Mapping saved to: {mapping_path}")
-
-                if not args.quiet:
-                    print(f"✓ Anonymized content written to: {args.output}")
-                    print(f"✓ Anonymized {count} unique identifiers")
-                return 0
-
-        elif args.command == "unanonymize":
-            if args.clipboard and not CLIPBOARD_AVAILABLE:
-                print(
-                    "Error: pyperclip not available. Install with: pip install pyperclip",
-                    file=sys.stderr,
-                )
-                return 1
-
-            if args.clipboard and (args.input or args.output):
-                print(
-                    "Error: --clipboard cannot be used with -i/--input or -o/--output",
-                    file=sys.stderr,
-                )
-                return 1
-
-            if not args.clipboard and (not args.input or not args.output):
-                print(
-                    "Error: -i/--input and -o/--output are required when not using --clipboard",
-                    file=sys.stderr,
-                )
-                return 1
-
-            if args.clipboard:
-                # Clipboard-based processing
-                try:
-                    text = pyperclip.paste()
-                except Exception as e:
-                    raise ClipboardError(
-                        f"Cannot access clipboard: {e}",
-                        "Ensure clipboard access is available on your system",
-                    ) from e
-
-                if not text.strip():
-                    raise ClipboardError(
-                        "Clipboard is empty",
-                        "Copy some text to clipboard before running this command",
-                    )
-
-                # Load mapping (use default if not specified)
-                mapping_path = args.mapping or get_default_mapping_path()
-                if args.encrypted:
-                    import getpass
-
-                    password = args.password or getpass.getpass("Enter password for mapping: ")
-                    mapping = load_encrypted_mapping(mapping_path, password)
-                    unmask = CloudUnmask(mapping=mapping)
-                else:
-                    unmask = CloudUnmask(mapping_file=mapping_path)
-
-                # Unanonymize
-                unanonymized = unmask.unanonymize(text)
-
-                # Write back to clipboard
-                try:
-                    pyperclip.copy(unanonymized)
-                except Exception as e:
-                    raise ClipboardError(
-                        f"Cannot write to clipboard: {e}",
-                        "Ensure clipboard access is available on your system",
-                    ) from e
-
-                if not args.quiet:
-                    print(
-                        f"✓ Unanonymized clipboard content ({len(unmask.reverse_mapping)} identifiers restored)"
-                    )
-                return 0
-            else:
-                # File-based processing
-                mapping_path = args.mapping or get_default_mapping_path()
-                if args.encrypted:
-                    import getpass
-
-                    password = args.password or getpass.getpass("Enter password for mapping: ")
-                    mapping = load_encrypted_mapping(mapping_path, password)
-                    unmask = CloudUnmask(mapping=mapping)
-                else:
-                    unmask = CloudUnmask(mapping_file=mapping_path)
-
-                if args.stream:
-                    count = stream_unanonymize_file(
-                        unmask, args.input, args.output, show_progress=args.progress
-                    )
-                else:
-                    count = unmask.unanonymize_file(args.input, args.output)
-
-                if not args.quiet:
-                    print(f"✓ Unanonymized content written to: {args.output}")
-                    print(f"✓ Restored {count} unique identifiers")
-                return 0
-
-        elif args.command == "validate":
-            if not args.config and not args.mapping:
-                print("Error: Either --config or --mapping must be specified", file=sys.stderr)
-                return 1
-
-            try:
-                if args.config:
-                    config = load_config(args.config, format=args.format, use_env=False)
-                    issues = validate_config(config)
-
-                    if issues:
-                        print(f"✗ Configuration has {len(issues)} issue(s):")
-                        for issue in issues:
-                            print(f"  - {issue}")
-                        return 1
-                    else:
-                        print(f"✓ Configuration is valid: {args.config}")
-                        print(f"  Seed length: {len(config.seed)} characters")
-                        print(f"  Company names: {len(config.company_names)}")
-                        print(f"  Custom patterns: {len(config.custom_patterns)}")
-
-                if args.mapping:
-                    import json
-
-                    if args.encrypted:
-                        import getpass
-
-                        password = args.password or getpass.getpass("Enter password: ")
-                        mapping = load_encrypted_mapping(args.mapping, password)
-                    else:
-                        with Path(args.mapping).open() as f:
-                            mapping = json.load(f)
-
-                    if not isinstance(mapping, dict):
-                        print("✗ Invalid mapping format: must be a JSON object", file=sys.stderr)
-                        return 1
-
-                    print(f"✓ Mapping is valid: {args.mapping}")
-                    print(f"  Total mappings: {len(mapping)}")
-
-                return 0
-            except Exception as e:
-                print(f"✗ Validation failed: {e}", file=sys.stderr)
-                return 1
-
-        elif args.command == "batch":
-            # Create output directory
-            args.output_dir.mkdir(parents=True, exist_ok=True)
-
-            # Load config
-            config_path = args.config or get_default_config_path()
-            config = load_config(config_path) if config_path else load_config(use_env=True)
-
-            if args.seed:
-                config.seed = args.seed
-
-            # Create anonymizer
-            mask = CloudMask(config)
-
-            # Process files
-            total_files = len(args.files)
-            processed = 0
-            failed = 0
-            total_identifiers = 0
-
-            if args.progress:
-                try:
-                    from tqdm import tqdm
-
-                    file_iter = tqdm(args.files, desc="Processing files")
-                except ImportError:
-                    file_iter = args.files
-                    print(f"Processing {total_files} files...")
-            else:
-                file_iter = args.files
-
-            for input_file in file_iter:
-                try:
-                    output_file = args.output_dir / input_file.name
-                    count = mask.anonymize_file(input_file, output_file)
-                    total_identifiers += count
-                    processed += 1
-                    if not args.progress and not args.quiet:
-                        print(f"✓ {input_file.name} -> {output_file}")
-                except Exception as e:
-                    failed += 1
-                    if not args.quiet:
-                        print(f"✗ Failed to process {input_file}: {e}", file=sys.stderr)
-
-            # Save mapping
-            if args.mapping:
-                if args.encrypt:
-                    import getpass
-
-                    password = args.password or getpass.getpass("Enter password for mapping: ")
-                    save_encrypted_mapping(mask.mapping, args.mapping, password)
-                else:
-                    mask.save_mapping(args.mapping)
-                if not args.quiet:
-                    print(f"✓ Mapping saved to: {args.mapping}")
-
-            # Summary
-            if not args.quiet:
-                print(f"\n{'='*50}")
-                print("Batch processing complete:")
-                print(f"  Total files: {total_files}")
-                print(f"  Processed: {processed}")
-                print(f"  Failed: {failed}")
-                print(f"  Total identifiers: {total_identifiers}")
-                print(f"  Unique identifiers: {len(mask.mapping)}")
-
-            return 0 if failed == 0 else 1
-
-        elif args.command == "stats":
-            import json
-            from collections import Counter
-
-            # Load mapping
-            if args.encrypted:
-                import getpass
-
-                password = args.password or getpass.getpass("Enter password: ")
-                mapping = load_encrypted_mapping(args.mapping, password)
-            else:
-                with Path(args.mapping).open() as f:
-                    mapping = json.load(f)
-
-            # Analyze mapping
-            total = len(mapping)
-
-            # Categorize by type
-            categories: Counter[str] = Counter()
-            for original in mapping:
-                if original.startswith(("vpc-", "subnet-", "sg-", "i-", "ami-", "vol-", "snap-")):
-                    categories["AWS Resources"] += 1
-                elif original.startswith("arn:"):
-                    categories["ARNs"] += 1
-                elif original.replace(".", "").isdigit() and len(original.split(".")) == 4:
-                    categories["IP Addresses"] += 1
-                elif "." in original and not original[0].isdigit():
-                    categories["Domains"] += 1
-                elif original.isdigit() and len(original) == 12:
-                    categories["Account IDs"] += 1
-                else:
-                    categories["Other"] += 1
-
-            # Display stats
-            print(f"Mapping Statistics: {args.mapping}")
-            print(f"{'='*50}")
-            print(f"Total mappings: {total}")
-            print("\nBy category:")
-            for category, count in categories.most_common():
-                percentage = (count / total * 100) if total > 0 else 0
-                print(f"  {category:20s}: {count:5d} ({percentage:5.1f}%)")
-
-            if args.detailed:
-                print("\nSample mappings (first 10):")
-                for original, anonymized in list(mapping.items())[:10]:
-                    print(f"  {original} -> {anonymized}")
-
-            return 0
+        handler = handlers.get(args.command)
+        if handler:
+            return handler(args)
 
         return 1
 
     except CloudMaskError as e:
-        # Our custom exceptions with suggestions
         print(f"Error: {e.message}", file=sys.stderr)
         if e.suggestion:
             print(f"💡 {e.suggestion}", file=sys.stderr)

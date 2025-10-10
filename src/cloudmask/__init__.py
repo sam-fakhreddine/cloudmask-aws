@@ -5,13 +5,12 @@ for secure LLM processing while maintaining reversible mappings.
 """
 
 from .__version__ import __version__
+from .config import Config, CustomPattern
 from .config_loader import load_config, load_from_env, validate_config
 from .config_templates import get_template, list_templates, save_template
 from .core import (
     CloudMask,
     CloudUnmask,
-    Config,
-    CustomPattern,
     TemporaryMask,
     anonymize,
     anonymize_dict,

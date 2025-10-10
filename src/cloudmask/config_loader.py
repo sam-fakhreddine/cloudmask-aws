@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from .core import Config, CustomPattern
+from .config import Config, CustomPattern
 from .exceptions import ConfigurationError
 
 if sys.version_info >= (3, 11):

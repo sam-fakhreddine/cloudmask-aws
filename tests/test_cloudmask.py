@@ -288,8 +288,8 @@ class TestEdgeCases:
 class TestCLIClipboard:
     """Test CLI clipboard functionality."""
 
-    @patch("cloudmask.cli.pyperclip")
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", True)
+    @patch("cloudmask.cli_handlers.pyperclip")
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", True)
     @patch("sys.argv", ["cloudmask", "anonymize", "--clipboard", "-m", "mapping.json"])
     def test_anonymize_clipboard(self, mock_pyperclip, tmp_path):
         """Test clipboard anonymization."""
@@ -310,8 +310,8 @@ class TestCLIClipboard:
         finally:
             os.chdir(old_cwd)
 
-    @patch("cloudmask.cli.pyperclip")
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", True)
+    @patch("cloudmask.cli_handlers.pyperclip")
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", True)
     @patch("sys.argv", ["cloudmask", "unanonymize", "--clipboard", "-m", "mapping.json"])
     def test_unanonymize_clipboard(self, mock_pyperclip, tmp_path):
         """Test clipboard unanonymization."""

@@ -12,8 +12,8 @@ from cloudmask.security import save_encrypted_mapping
 class TestCLIClipboard:
     """Test CLI clipboard functionality."""
 
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", True)
-    @patch("cloudmask.cli.pyperclip")
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", True)
+    @patch("cloudmask.cli_handlers.pyperclip")
     def test_anonymize_clipboard(self, mock_pyperclip, tmp_path):
         """Test anonymizing clipboard content."""
         mapping_file = tmp_path / "mapping.json"
@@ -30,8 +30,8 @@ class TestCLIClipboard:
         anonymized = mock_pyperclip.copy.call_args[0][0]
         assert "vpc-123" not in anonymized
 
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", True)
-    @patch("cloudmask.cli.pyperclip")
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", True)
+    @patch("cloudmask.cli_handlers.pyperclip")
     def test_anonymize_clipboard_with_encryption(self, mock_pyperclip, tmp_path):
         """Test anonymizing clipboard with encrypted mapping."""
         mapping_file = tmp_path / "mapping.bin"
@@ -57,8 +57,8 @@ class TestCLIClipboard:
         assert result == 0
         assert mapping_file.exists()
 
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", True)
-    @patch("cloudmask.cli.pyperclip")
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", True)
+    @patch("cloudmask.cli_handlers.pyperclip")
     def test_anonymize_clipboard_empty(self, mock_pyperclip, tmp_path, capsys):
         """Test error when clipboard is empty."""
         mock_pyperclip.paste.return_value = "   "
@@ -81,8 +81,8 @@ class TestCLIClipboard:
         captured = capsys.readouterr()
         assert "empty" in captured.err.lower()
 
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", True)
-    @patch("cloudmask.cli.pyperclip")
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", True)
+    @patch("cloudmask.cli_handlers.pyperclip")
     def test_anonymize_clipboard_read_error(self, mock_pyperclip, tmp_path, capsys):
         """Test error when clipboard read fails."""
         mock_pyperclip.paste.side_effect = Exception("Clipboard error")
@@ -105,8 +105,8 @@ class TestCLIClipboard:
         captured = capsys.readouterr()
         assert "clipboard" in captured.err.lower()
 
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", True)
-    @patch("cloudmask.cli.pyperclip")
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", True)
+    @patch("cloudmask.cli_handlers.pyperclip")
     def test_anonymize_clipboard_write_error(self, mock_pyperclip, tmp_path, capsys):
         """Test error when clipboard write fails."""
         mock_pyperclip.paste.return_value = "vpc-123"
@@ -130,7 +130,7 @@ class TestCLIClipboard:
         captured = capsys.readouterr()
         assert "clipboard" in captured.err.lower()
 
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", False)
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", False)
     def test_anonymize_clipboard_not_available(self, capsys):
         """Test error when clipboard not available."""
         with patch(
@@ -165,8 +165,8 @@ class TestCLIClipboard:
         captured = capsys.readouterr()
         assert "cannot be used" in captured.err.lower()
 
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", True)
-    @patch("cloudmask.cli.pyperclip")
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", True)
+    @patch("cloudmask.cli_handlers.pyperclip")
     def test_unanonymize_clipboard(self, mock_pyperclip, tmp_path):
         """Test unanonymizing clipboard content."""
         mapping_file = tmp_path / "mapping.json"
@@ -189,8 +189,8 @@ class TestCLIClipboard:
         unanonymized = mock_pyperclip.copy.call_args[0][0]
         assert unanonymized == original
 
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", True)
-    @patch("cloudmask.cli.pyperclip")
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", True)
+    @patch("cloudmask.cli_handlers.pyperclip")
     def test_unanonymize_clipboard_with_encryption(self, mock_pyperclip, tmp_path):
         """Test unanonymizing clipboard with encrypted mapping."""
         mapping_file = tmp_path / "mapping.bin"
@@ -221,8 +221,8 @@ class TestCLIClipboard:
         unanonymized = mock_pyperclip.copy.call_args[0][0]
         assert unanonymized == original
 
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", True)
-    @patch("cloudmask.cli.pyperclip")
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", True)
+    @patch("cloudmask.cli_handlers.pyperclip")
     def test_unanonymize_clipboard_empty(self, mock_pyperclip, tmp_path, capsys):
         """Test error when clipboard is empty for unanonymize."""
         mapping_file = tmp_path / "mapping.json"
@@ -239,7 +239,7 @@ class TestCLIClipboard:
         captured = capsys.readouterr()
         assert "empty" in captured.err.lower()
 
-    @patch("cloudmask.cli.CLIPBOARD_AVAILABLE", False)
+    @patch("cloudmask.cli_handlers.CLIPBOARD_AVAILABLE", False)
     def test_unanonymize_clipboard_not_available(self, capsys):
         """Test error when clipboard not available for unanonymize."""
         with patch("sys.argv", ["cloudmask", "unanonymize", "--clipboard", "-m", "mapping.json"]):
