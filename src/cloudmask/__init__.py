@@ -35,7 +35,12 @@ from .security import (
     load_encrypted_mapping,
     save_encrypted_mapping,
 )
-from .storage import ensure_secure_permissions, get_default_mapping_path, get_storage_dir
+from .storage import (
+    ensure_secure_permissions,
+    get_default_config_path,
+    get_default_mapping_path,
+    get_storage_dir,
+)
 from .streaming import stream_anonymize_file, stream_unanonymize_file
 
 __all__ = [
@@ -60,6 +65,7 @@ __all__ = [
     "decrypt_mapping",
     "encrypt_mapping",
     "ensure_secure_permissions",
+    "get_default_config_path",
     "get_default_mapping_path",
     "get_storage_dir",
     "get_template",

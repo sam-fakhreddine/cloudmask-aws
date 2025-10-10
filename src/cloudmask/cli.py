@@ -18,7 +18,7 @@ from .core import CloudMask, CloudUnmask
 from .exceptions import ClipboardError, CloudMaskError
 from .logging import log_error, setup_logging
 from .security import load_encrypted_mapping, save_encrypted_mapping
-from .storage import get_default_mapping_path, get_storage_dir
+from .storage import get_default_config_path, get_default_mapping_path, get_storage_dir
 from .streaming import stream_anonymize_file, stream_unanonymize_file
 
 
@@ -337,9 +337,10 @@ Examples:
                 return 1
 
             # Load config
+            config_path = args.config or get_default_config_path()
             config = (
-                load_config(args.config, format=args.format, use_env=not args.no_env)
-                if args.config
+                load_config(config_path, format=args.format, use_env=not args.no_env)
+                if config_path
                 else load_config(use_env=not args.no_env)
             )
 
@@ -565,7 +566,8 @@ Examples:
             args.output_dir.mkdir(parents=True, exist_ok=True)
 
             # Load config
-            config = load_config(args.config) if args.config else load_config(use_env=True)
+            config_path = args.config or get_default_config_path()
+            config = load_config(config_path) if config_path else load_config(use_env=True)
 
             if args.seed:
                 config.seed = args.seed

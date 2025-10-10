@@ -52,3 +52,14 @@ def get_default_mapping_path() -> Path:
         ensure_secure_permissions(mapping_path)
 
     return mapping_path
+
+
+def get_default_config_path() -> Path | None:
+    """Get the default config file path if it exists.
+
+    Returns:
+        Path to ~/.cloudmask/config.yml if it exists, None otherwise.
+    """
+    storage_dir = get_storage_dir()
+    config_path = storage_dir / "config.yml"
+    return config_path if config_path.exists() else None

@@ -338,7 +338,22 @@ class CloudMask:
             lambda m: self._anonymize_by_type(m.group(0), "account"), result
         )
 
+        # Custom patterns - do BEFORE company names to avoid conflicts
+        for custom_pattern in self.config.custom_patterns:
+            pattern_name = custom_pattern.name
+
+            def replace_custom(match: re.Match[str], name: str = pattern_name) -> str:
+                return self._anonymize_by_type(match.group(0), name)
+
+            result = re.sub(
+                custom_pattern.pattern,
+                replace_custom,
+                result,
+                flags=re.IGNORECASE,
+            )
+
         # Company names with case-insensitive matching
+        # Avoid matching within anonymized identifiers (pattern: name-hash)
         if self.config.company_names:
             for company in sorted(self.config.company_names, key=len, reverse=True):
                 if not company.strip():
@@ -346,7 +361,16 @@ class CloudMask:
 
                 company_name = company
 
-                def replace_company(_m: re.Match[str], c: str = company_name) -> str:
+                def replace_company(m: re.Match[str], c: str = company_name) -> str:
+                    # Skip if this is part of an anonymized identifier (pattern: name-hash)
+                    full_text = m.string
+                    end = m.end()
+                    # Check if followed by dash and hex (anonymized pattern)
+                    if end < len(full_text) and full_text[end] == "-" and end + 1 < len(full_text):
+                        # Check if next part looks like an anonymized suffix
+                        remaining = full_text[end + 1 : end + 20]
+                        if re.match(r"[a-z]+-[a-f0-9]{12,}", remaining):
+                            return m.group(0)
                     return self._anonymize_by_type(c, "company")
 
                 result = re.sub(
@@ -379,19 +403,6 @@ class CloudMask:
                 lambda m: self._anonymize_by_type(m.group(0), "domain"),
                 result,
                 flags=re.IGNORECASE,
-            )
-
-        # Custom patterns
-        for custom_pattern in self.config.custom_patterns:
-            pattern_name = custom_pattern.name
-
-            def replace_custom(match: re.Match[str], name: str = pattern_name) -> str:
-                return self._anonymize_by_type(match.group(0), name)
-
-            result = re.sub(
-                custom_pattern.pattern,
-                replace_custom,
-                result,
             )
 
         return result

@@ -101,7 +101,7 @@ original = unanonymize(text, mapping)
 
 ## Configuration
 
-Create a `cloudmask.yaml` file:
+Create a `~/.cloudmask/config.yml` file (or use `cloudmask init-config`):
 
 ```yaml
 company_names:
@@ -114,11 +114,34 @@ custom_patterns:
     name: ticket
   - pattern: '\bPROJ-[A-Z0-9]+'
     name: project
+  # Example: Match company domains
+  - pattern: '[a-zA-Z0-9][-a-zA-Z0-9.]*\.acme\.local\b'
+    name: domain
+  # Example: Match company emails
+  - pattern: '[a-zA-Z0-9._%+-]+@acme-corp\.local\b'
+    name: email
 
 preserve_prefixes: true
 anonymize_ips: true
 anonymize_domains: false
 seed: my-secret-seed
+```
+
+### Custom Pattern Edge Cases
+
+When creating custom patterns, be aware of:
+
+- **Case sensitivity**: Patterns are case-insensitive by default
+- **Multi-level subdomains**: Use `[-a-zA-Z0-9.]*` to match `app.corp.acme.local`
+- **HTML entities**: `&quot;` in data is handled automatically
+- **Email variations**: Pattern supports `user+tag@domain` and `user.name@domain`
+- **URLs and paths**: Patterns work in `https://server.acme.local/path`
+- **Trailing punctuation**: Word boundaries (`\b`) handle `server.acme.local.`
+
+Test your patterns:
+```bash
+cloudmask anonymize -i test.txt -o output.txt
+grep -i "sensitive-term" output.txt  # Should return nothing
 ```
 
 ## What Gets Anonymized?
@@ -251,6 +274,21 @@ Contributions welcome! Please check out the [GitHub repository](https://github.c
 ## License
 
 MIT License - see LICENSE file for details
+
+## Troubleshooting
+
+### Pattern Not Matching?
+
+1. Test the regex: `python -c "import re; print(re.search(r'your-pattern', 'test-string'))"`
+2. Check case sensitivity: Patterns are case-insensitive
+3. Verify word boundaries: `\b` may not work with special characters
+4. Test with real data: Use small samples first
+
+### Data Still Leaking?
+
+1. Check pattern order: Custom patterns run before company names
+2. Verify pattern name: Use generic names like `domain`, not `acme-domain`
+3. Test thoroughly: `grep -i "sensitive" output.txt`
 
 ## Support
 
