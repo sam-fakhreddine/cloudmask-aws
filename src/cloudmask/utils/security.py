@@ -9,8 +9,8 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-from .exceptions import EncryptionError, FileOperationError, ValidationError
-from .logging import logger
+from ..exceptions import EncryptionError, FileOperationError, ValidationError
+from ..logging import logger
 
 
 def derive_key(password: str, salt: bytes) -> bytes:

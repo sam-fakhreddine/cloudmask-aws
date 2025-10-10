@@ -79,7 +79,7 @@ Repository = "https://github.com/sam-fakhreddine/cloudmask-aws"
 "Source Code" = "https://github.com/sam-fakhreddine/cloudmask-aws"
 
 [project.scripts]
-cloudmask = "cloudmask.cli:main"
+cloudmask = "cloudmask.cli.cli:main"
 
 [tool.setuptools]
 include-package-data = true

@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from .anonymizer import Anonymizer
-from .config import Config
-from .file_processor import FileProcessor
+from .config.config import Config
+from .io.file_processor import FileProcessor
 from .logging import logger
 from .mapper import MappingManager
 

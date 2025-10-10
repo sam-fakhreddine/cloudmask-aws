@@ -1,6 +1,6 @@
 """Tests for optimized pattern matching."""
 
-from cloudmask.patterns import (
+from cloudmask.utils.patterns import (
     AWS_ACCOUNT_PATTERN,
     AWS_ARN_PATTERN,
     AWS_RESOURCE_PATTERN,

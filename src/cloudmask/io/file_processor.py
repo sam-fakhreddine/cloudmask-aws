@@ -3,8 +3,8 @@
 from collections.abc import Callable
 from pathlib import Path
 
-from .exceptions import FileOperationError
-from .logging import log_operation, logger
+from ..exceptions import FileOperationError
+from ..logging import log_operation, logger
 
 
 class FileProcessor:

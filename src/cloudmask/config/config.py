@@ -6,8 +6,8 @@ from pathlib import Path
 
 import yaml
 
-from .exceptions import ConfigurationError, FileOperationError, ValidationError
-from .logging import log_operation, logger
+from ..exceptions import ConfigurationError, FileOperationError, ValidationError
+from ..logging import log_operation, logger
 
 
 @dataclass

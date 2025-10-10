@@ -3,9 +3,9 @@
 import hashlib
 import re
 
-from .cache import LRUCache
-from .config import Config
-from .patterns import AWS_ACCOUNT_PATTERN, get_aws_patterns, is_valid_ip
+from .config.config import Config
+from .utils.cache import LRUCache
+from .utils.patterns import AWS_ACCOUNT_PATTERN, get_aws_patterns, is_valid_ip
 
 
 class Anonymizer:
@@ -108,7 +108,7 @@ class Anonymizer:
                 lambda m: self._anonymize_by_type(m.group(0), "account"), original
             )
             # Anonymize resource IDs within ARN (but not the ARN pattern itself)
-            from .patterns import AWS_RESOURCE_PATTERN
+            from .utils.patterns import AWS_RESOURCE_PATTERN
 
             result = AWS_RESOURCE_PATTERN.sub(lambda m: self._anonymize_aws_resource(m), result)
             self.mapping[original] = result

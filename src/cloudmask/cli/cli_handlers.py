@@ -13,13 +13,13 @@ try:
 except ImportError:
     CLIPBOARD_AVAILABLE = False
 
-from .config_loader import load_config, validate_config
-from .config_templates import list_templates, save_template
-from .core import CloudMask, CloudUnmask
-from .exceptions import ClipboardError
-from .security import load_encrypted_mapping, save_encrypted_mapping
-from .storage import get_default_config_path, get_default_mapping_path, get_storage_dir
-from .streaming import stream_anonymize_file, stream_unanonymize_file
+from ..config.config_loader import load_config, validate_config
+from ..config.config_templates import list_templates, save_template
+from ..core import CloudMask, CloudUnmask
+from ..exceptions import ClipboardError
+from ..io.storage import get_default_config_path, get_default_mapping_path, get_storage_dir
+from ..io.streaming import stream_anonymize_file, stream_unanonymize_file
+from ..utils.security import load_encrypted_mapping, save_encrypted_mapping
 
 
 def check_clipboard_available() -> bool:

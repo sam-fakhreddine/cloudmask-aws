@@ -4,7 +4,7 @@ import pytest
 
 from cloudmask import CloudMask, CloudUnmask
 from cloudmask.exceptions import FileOperationError
-from cloudmask.streaming import stream_anonymize_file, stream_unanonymize_file
+from cloudmask.io.streaming import stream_anonymize_file, stream_unanonymize_file
 
 
 class TestStreaming:

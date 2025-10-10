@@ -6,8 +6,8 @@ from unittest.mock import patch
 import pytest
 
 from cloudmask import CloudMask
-from cloudmask.cli import main
-from cloudmask.security import save_encrypted_mapping
+from cloudmask.cli.cli import main
+from cloudmask.utils.security import save_encrypted_mapping
 
 
 class TestCLICommands:

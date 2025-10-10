@@ -8,8 +8,8 @@ from typing import Any
 
 import yaml
 
+from ..exceptions import ConfigurationError
 from .config import Config, CustomPattern
-from .exceptions import ConfigurationError
 
 if sys.version_info >= (3, 11):
     import tomllib  # type: ignore[import-not-found]

@@ -5,6 +5,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from ..exceptions import CloudMaskError
+from ..logging import log_error, setup_logging
 from .cli_handlers import (
     handle_anonymize,
     handle_batch,
@@ -13,8 +15,6 @@ from .cli_handlers import (
     handle_unanonymize,
     handle_validate,
 )
-from .exceptions import CloudMaskError
-from .logging import log_error, setup_logging
 
 
 def create_parser() -> argparse.ArgumentParser:

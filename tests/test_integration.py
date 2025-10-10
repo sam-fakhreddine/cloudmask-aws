@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from cloudmask import CloudMask
-from cloudmask.cli import main
+from cloudmask.cli.cli import main
 
 
 class TestCLIIntegration:

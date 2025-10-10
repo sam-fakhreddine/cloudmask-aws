@@ -17,7 +17,7 @@ from cloudmask.exceptions import (
     FileOperationError,
     ValidationError,
 )
-from cloudmask.ratelimit import BatchRateLimiter, RateLimiter
+from cloudmask.utils.ratelimit import BatchRateLimiter, RateLimiter
 
 
 class TestEncryption:

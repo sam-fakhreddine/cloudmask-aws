@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from .exceptions import FileOperationError, MappingError
+from .io.storage import ensure_secure_permissions
 from .logging import log_operation, logger
-from .storage import ensure_secure_permissions
 
 
 class MappingManager:

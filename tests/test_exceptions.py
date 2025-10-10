@@ -13,7 +13,7 @@ from cloudmask import (
     ValidationError,
 )
 from cloudmask.exceptions import EncryptionError
-from cloudmask.security import decrypt_mapping, encrypt_mapping
+from cloudmask.utils.security import decrypt_mapping, encrypt_mapping
 
 
 def test_exception_with_suggestion():
