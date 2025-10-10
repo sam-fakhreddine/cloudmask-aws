@@ -1,6 +1,6 @@
 """Tests for caching functionality."""
 
-from cloudmask.cache import LRUCache, memoize
+from cloudmask.utils.cache import LRUCache, memoize
 
 
 class TestLRUCache:

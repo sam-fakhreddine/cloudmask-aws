@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cloudmask-aws"
-version = "0.2.0"
+version = "0.3.0"
 description = "Anonymize AWS infrastructure identifiers for secure LLM processing"
 readme = "README.md"
 authors = [
@@ -79,7 +79,7 @@ Repository = "https://github.com/sam-fakhreddine/cloudmask-aws"
 "Source Code" = "https://github.com/sam-fakhreddine/cloudmask-aws"
 
 [project.scripts]
-cloudmask = "cloudmask.cli:main"
+cloudmask = "cloudmask.cli.cli:main"
 
 [tool.setuptools]
 include-package-data = true

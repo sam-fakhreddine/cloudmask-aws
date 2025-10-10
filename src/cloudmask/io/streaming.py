@@ -4,9 +4,9 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import TextIO
 
-from .core import CloudMask, CloudUnmask
-from .exceptions import FileOperationError
-from .logging import logger
+from ..core import CloudMask, CloudUnmask
+from ..exceptions import FileOperationError
+from ..logging import logger
 
 
 def stream_anonymize_file(

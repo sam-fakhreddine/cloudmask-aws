@@ -5,13 +5,12 @@ for secure LLM processing while maintaining reversible mappings.
 """
 
 from .__version__ import __version__
-from .config_loader import load_config, load_from_env, validate_config
-from .config_templates import get_template, list_templates, save_template
+from .config.config import Config, CustomPattern
+from .config.config_loader import load_config, load_from_env, validate_config
+from .config.config_templates import get_template, list_templates, save_template
 from .core import (
     CloudMask,
     CloudUnmask,
-    Config,
-    CustomPattern,
     TemporaryMask,
     anonymize,
     anonymize_dict,
@@ -27,21 +26,21 @@ from .exceptions import (
     MappingError,
     ValidationError,
 )
-from .logging import setup_logging
-from .ratelimit import BatchRateLimiter, RateLimiter
-from .security import (
-    decrypt_mapping,
-    encrypt_mapping,
-    load_encrypted_mapping,
-    save_encrypted_mapping,
-)
-from .storage import (
+from .io.storage import (
     ensure_secure_permissions,
     get_default_config_path,
     get_default_mapping_path,
     get_storage_dir,
 )
-from .streaming import stream_anonymize_file, stream_unanonymize_file
+from .io.streaming import stream_anonymize_file, stream_unanonymize_file
+from .logging import setup_logging
+from .utils.ratelimit import BatchRateLimiter, RateLimiter
+from .utils.security import (
+    decrypt_mapping,
+    encrypt_mapping,
+    load_encrypted_mapping,
+    save_encrypted_mapping,
+)
 
 __all__ = [
     "BatchRateLimiter",

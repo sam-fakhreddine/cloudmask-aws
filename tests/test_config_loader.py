@@ -5,7 +5,7 @@ import json
 import pytest
 
 from cloudmask import Config
-from cloudmask.config_loader import load_config, load_from_env, validate_config
+from cloudmask.config.config_loader import load_config, load_from_env, validate_config
 from cloudmask.exceptions import ConfigurationError
 
 

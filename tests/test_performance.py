@@ -3,7 +3,7 @@
 import time
 
 from cloudmask import CloudMask, Config
-from cloudmask.streaming import stream_anonymize_file
+from cloudmask.io.streaming import stream_anonymize_file
 
 
 class TestPerformance:

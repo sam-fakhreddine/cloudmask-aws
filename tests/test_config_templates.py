@@ -3,7 +3,7 @@
 import pytest
 import yaml
 
-from cloudmask.config_templates import get_template, list_templates, save_template
+from cloudmask.config.config_templates import get_template, list_templates, save_template
 
 
 class TestTemplates:
