@@ -46,23 +46,26 @@ pip install cloudmask-aws
 # Generate config file
 cloudmask init-config
 
-# Anonymize a file
-cloudmask anonymize -i infrastructure.txt -o anonymized.txt -m mapping.json
+# Anonymize (mapping stored in ~/.cloudmask/mapping.json by default)
+cloudmask anonymize -i infrastructure.txt -o anonymized.txt
 
 # Anonymize clipboard content
-cloudmask anonymize --clipboard -m mapping.json
+cloudmask anonymize --clipboard
 
 # Restore original values
-cloudmask unanonymize -i llm-response.txt -o restored.txt -m mapping.json
+cloudmask unanonymize -i llm-response.txt -o restored.txt
 
 # Restore clipboard content
-cloudmask unanonymize --clipboard -m mapping.json
+cloudmask unanonymize --clipboard
+
+# Use custom mapping location if needed
+cloudmask anonymize --clipboard -m /path/to/custom-mapping.json
 ```
 
 ### Python Library Usage
 
 ```python
-from cloudmask import CloudMask, CloudUnmask
+from cloudmask import CloudMask, CloudUnmask, get_default_mapping_path
 
 # Anonymize text
 mask = CloudMask(seed="my-secret-seed")
@@ -72,11 +75,11 @@ anonymized = mask.anonymize("""
     Company: Acme Corp
 """)
 
-# Save mapping for later
-mask.save_mapping("mapping.json")
+# Save mapping to secure central location (~/.cloudmask/mapping.json)
+mask.save_mapping(get_default_mapping_path())
 
 # Unanonymize later
-unmask = CloudUnmask(mapping_file="mapping.json")
+unmask = CloudUnmask(mapping_file=get_default_mapping_path())
 original = unmask.unanonymize(anonymized)
 ```
 
@@ -182,14 +185,64 @@ result1 = anon("vpc-123")
 result2 = anon("i-456")
 ```
 
+## Central Storage
+
+CloudMask stores mapping files in a secure central location by default:
+
+```
+~/.cloudmask/mapping.json
+```
+
+### Benefits
+
+- 🔐 **Automatic Security**: Files created with `600` permissions (owner read/write only)
+- 📍 **Centralized**: All mappings in one location
+- 🔄 **Auto-Merge**: New mappings are merged with existing ones (same seed required)
+- ⚡ **Convenient**: No need to specify `-m` flag for common workflows
+
+### Seed Verification
+
+CloudMask tracks which seed created each mapping file. Mappings can only be merged if they use the same seed:
+
+```python
+# First use
+mask1 = CloudMask(seed="prod-seed")
+mask1.anonymize("vpc-11111")
+mask1.save_mapping(get_default_mapping_path())  # Creates mapping
+
+# Later use with SAME seed - mappings merge automatically
+mask2 = CloudMask(seed="prod-seed")
+mask2.anonymize("vpc-22222")
+mask2.save_mapping(get_default_mapping_path())  # Merges with existing
+
+# Different seed - prevents accidental corruption
+mask3 = CloudMask(seed="different-seed")
+mask3.save_mapping(get_default_mapping_path())  # ERROR: Seed mismatch
+```
+
+### Custom Locations
+
+You can still use custom mapping locations:
+
+```bash
+cloudmask anonymize -i file.txt -m /custom/path/mapping.json
+```
+
+```python
+mask.save_mapping("/custom/path/mapping.json")
+```
+
 ## Security Notes
 
 ⚠️ **Keep your mapping files secure!** They contain the reversible mappings.
 
+- The `~/.cloudmask/` directory is automatically secured with `700` permissions
+- Mapping files are created with `600` permissions (owner only)
 - Store mapping files separately from anonymized data
 - Use strong, unique seeds for different projects
 - Don't commit mapping files to version control
 - Consider encrypting mapping files for sensitive data
+- Always use the same seed for a project to enable mapping merges
 
 ## Contributing
 
