@@ -65,7 +65,7 @@ cloudmask anonymize --clipboard -m /path/to/custom-mapping.json
 ### Python Library Usage
 
 ```python
-from cloudmask import CloudMask, CloudUnmask, get_default_mapping_path
+from cloudmask import CloudMask, CloudUnmask, Storage
 
 # Anonymize text
 mask = CloudMask(seed="my-secret-seed")
@@ -76,10 +76,10 @@ anonymized = mask.anonymize("""
 """)
 
 # Save mapping to secure central location (~/.cloudmask/mapping.json)
-mask.save_mapping(get_default_mapping_path())
+mask.save_mapping(Storage.DefaultMappingPath)
 
 # Unanonymize later
-unmask = CloudUnmask(mapping_file=get_default_mapping_path())
+unmask = CloudUnmask(mapping_file=Storage.DefaultMappingPath)
 original = unmask.unanonymize(anonymized)
 ```
 
@@ -231,16 +231,16 @@ CloudMask tracks which seed created each mapping file. Mappings can only be merg
 # First use
 mask1 = CloudMask(seed="prod-seed")
 mask1.anonymize("vpc-11111")
-mask1.save_mapping(get_default_mapping_path())  # Creates mapping
+mask1.save_mapping(Storage.DefaultMappingPath)  # Creates mapping
 
 # Later use with SAME seed - mappings merge automatically
 mask2 = CloudMask(seed="prod-seed")
 mask2.anonymize("vpc-22222")
-mask2.save_mapping(get_default_mapping_path())  # Merges with existing
+mask2.save_mapping(Storage.DefaultMappingPath)  # Merges with existing
 
 # Different seed - prevents accidental corruption
 mask3 = CloudMask(seed="different-seed")
-mask3.save_mapping(get_default_mapping_path())  # ERROR: Seed mismatch
+mask3.save_mapping(Storage.DefaultMappingPath)  # ERROR: Seed mismatch
 ```
 
 ### Custom Locations

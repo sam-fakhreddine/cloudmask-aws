@@ -3,7 +3,7 @@
 from pathlib import Path
 
 # Template configurations
-TEMPLATES = {
+_TEMPLATES = {
     "minimal": """# Minimal CloudMask Configuration
 seed: my-secret-seed
 preserve_prefixes: true
@@ -57,36 +57,55 @@ custom_patterns:
 }
 
 
-def get_template(name: str) -> str:
-    """Get configuration template by name.
-
-    Args:
-        name: Template name (minimal, standard, comprehensive, security-focused)
-
-    Returns:
-        Template content as string
-
-    Raises:
-        KeyError: If template name not found
-    """
-    if name not in TEMPLATES:
-        available = ", ".join(TEMPLATES.keys())
+def _get_template(name: str) -> str:
+    """Get configuration template by name."""
+    if name not in _TEMPLATES:
+        available = ", ".join(_TEMPLATES.keys())
         raise KeyError(f"Unknown template '{name}'. Available: {available}")
+    return _TEMPLATES[name]
 
-    return TEMPLATES[name]
 
-
-def list_templates() -> list[str]:
+def _list_templates() -> list[str]:
     """List available template names."""
-    return list(TEMPLATES.keys())
+    return list(_TEMPLATES.keys())
 
 
-def save_template(name: str, path: Path) -> None:
-    """Save template to file.
-
-    Args:
-        name: Template name
-        path: Output file path
-    """
-    template = get_template(name)
+def _save_template(name: str, path: Path) -> None:
+    """Save template to file."""
+    template = _get_template(name)
     path.write_text(template)
+
+
+class _ConfigTemplates:
+    """Configuration template management."""
+
+    def Get(self, name: str) -> str:
+        """Get configuration template by name.
+
+        Args:
+            name: Template name (minimal, standard, comprehensive, security-focused)
+        """
+        return _get_template(name)
+
+    @property
+    def List(self) -> list[str]:
+        """List available template names."""
+        return _list_templates()
+
+    def Save(self, name: str, path: Path) -> None:
+        """Save template to file.
+
+        Args:
+            name: Template name
+            path: Output file path
+        """
+        _save_template(name, path)
+
+
+# Singleton instance
+ConfigTemplates = _ConfigTemplates()
+
+# Backward compatibility
+get_template = _get_template
+list_templates = _list_templates
+save_template = _save_template

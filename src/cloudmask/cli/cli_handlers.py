@@ -14,10 +14,10 @@ except ImportError:
     CLIPBOARD_AVAILABLE = False
 
 from ..config.config_loader import load_config, validate_config
-from ..config.config_templates import list_templates, save_template
+from ..config.config_templates import ConfigTemplates
 from ..core import CloudMask, CloudUnmask
 from ..exceptions import ClipboardError
-from ..io.storage import get_default_config_path, get_default_mapping_path, get_storage_dir
+from ..io.storage import Storage
 from ..io.streaming import stream_anonymize_file, stream_unanonymize_file
 from ..utils.security import load_encrypted_mapping, save_encrypted_mapping
 
@@ -97,14 +97,14 @@ def handle_init_config(args: Any) -> int:
     """Handle init-config command."""
     if args.list_templates:
         print("Available templates:")
-        for template in list_templates():
+        for template in ConfigTemplates.List:
             print(f"  - {template}")
         return 0
 
-    save_template(args.template, args.config)
+    ConfigTemplates.Save(args.template, args.config)
     print(f"✓ Config file created from '{args.template}' template: {args.config}")
     print("\nEdit this file to customize your configuration.")
-    print(f"\nMappings will be stored in: {get_storage_dir()}")
+    print(f"\nMappings will be stored in: {Storage.Dir}")
     return 0
 
 
@@ -126,7 +126,7 @@ def handle_anonymize(args: Any) -> int:
         return 1
 
     # Load config
-    config_path = args.config or get_default_config_path()
+    config_path = args.config or Storage.DefaultConfigPath
     config = (
         load_config(config_path, format=args.format, use_env=not args.no_env)
         if config_path
@@ -137,7 +137,7 @@ def handle_anonymize(args: Any) -> int:
         config.seed = args.seed
 
     mask = CloudMask(config)
-    mapping_path = args.mapping or get_default_mapping_path()
+    mapping_path = args.mapping or Storage.DefaultMappingPath
 
     if args.clipboard:
         text = get_clipboard_text()
@@ -179,7 +179,7 @@ def handle_unanonymize(args: Any) -> int:
         )
         return 1
 
-    mapping_path = args.mapping or get_default_mapping_path()
+    mapping_path = args.mapping or Storage.DefaultMappingPath
     mapping = load_mapping_with_decryption(mapping_path, args.encrypted, args.password)
     unmask = CloudUnmask(mapping=mapping) if mapping else CloudUnmask(mapping_file=mapping_path)
 
@@ -251,7 +251,7 @@ def handle_batch(args: Any) -> int:
     """Handle batch command."""
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    config_path = args.config or get_default_config_path()
+    config_path = args.config or Storage.DefaultConfigPath
     config = load_config(config_path) if config_path else load_config(use_env=True)
 
     if args.seed:
