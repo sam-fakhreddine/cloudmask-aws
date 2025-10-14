@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "cloudmask",
+			"path": "."
+		},
+		{
+			"name": "cloudmask-gui",
+			"path": "../cloudmask-gui"
+		}
+	],
+	"settings": {}
+}
