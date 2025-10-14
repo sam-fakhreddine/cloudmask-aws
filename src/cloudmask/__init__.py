@@ -7,7 +7,12 @@ for secure LLM processing while maintaining reversible mappings.
 from .__version__ import __version__
 from .config.config import Config, CustomPattern
 from .config.config_loader import load_config, load_from_env, validate_config
-from .config.config_templates import get_template, list_templates, save_template
+from .config.config_templates import (
+    ConfigTemplates,
+    get_template,
+    list_templates,
+    save_template,
+)
 from .core import (
     CloudMask,
     CloudUnmask,
@@ -27,6 +32,7 @@ from .exceptions import (
     ValidationError,
 )
 from .io.storage import (
+    Storage,
     ensure_secure_permissions,
     get_default_config_path,
     get_default_mapping_path,
@@ -49,12 +55,14 @@ __all__ = [
     "CloudMaskError",
     "CloudUnmask",
     "Config",
+    "ConfigTemplates",
     "ConfigurationError",
     "CustomPattern",
     "EncryptionError",
     "FileOperationError",
     "MappingError",
     "RateLimiter",
+    "Storage",
     "TemporaryMask",
     "ValidationError",
     "__version__",

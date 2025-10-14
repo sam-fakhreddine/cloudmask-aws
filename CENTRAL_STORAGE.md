@@ -35,18 +35,18 @@ cloudmask anonymize --clipboard -m /path/to/custom-mapping.json
 ### Python API
 
 ```python
-from cloudmask import CloudMask, get_default_mapping_path, get_storage_dir
+from cloudmask import CloudMask, Storage
 
 # Get the storage directory
-storage_dir = get_storage_dir()  # Returns: ~/.cloudmask
+storage_dir = Storage.Dir  # Returns: ~/.cloudmask
 
 # Get the default mapping path
-mapping_path = get_default_mapping_path()  # Returns: ~/.cloudmask/mapping.json
+mapping_path = Storage.DefaultMappingPath  # Returns: ~/.cloudmask/mapping.json
 
 # Use with CloudMask
 mask = CloudMask()
 anonymized = mask.anonymize("vpc-12345")
-mask.save_mapping(get_default_mapping_path())  # Saves with secure permissions
+mask.save_mapping(Storage.DefaultMappingPath)  # Saves with secure permissions
 ```
 
 ## Benefits
@@ -75,17 +75,17 @@ If you have existing mapping files, you can:
 # First anonymization
 mask1 = CloudMask(seed="production-seed")
 mask1.anonymize("vpc-11111")
-mask1.save_mapping(get_default_mapping_path())  # Saves 1 mapping
+mask1.save_mapping(Storage.DefaultMappingPath)  # Saves 1 mapping
 
 # Second anonymization with SAME seed
 mask2 = CloudMask(seed="production-seed")
 mask2.anonymize("vpc-22222")
-mask2.save_mapping(get_default_mapping_path())  # Now has 2 mappings (merged!)
+mask2.save_mapping(Storage.DefaultMappingPath)  # Now has 2 mappings (merged!)
 
 # Different seed - will fail
 mask3 = CloudMask(seed="different-seed")
 mask3.anonymize("vpc-33333")
-mask3.save_mapping(get_default_mapping_path())  # ERROR: Cannot merge different seeds
+mask3.save_mapping(Storage.DefaultMappingPath)  # ERROR: Cannot merge different seeds
 ```
 
 To overwrite instead of merge:
