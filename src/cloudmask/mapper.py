@@ -1,5 +1,6 @@
 """Mapping file management."""
 
+import fcntl
 import hashlib
 import json
 import os
@@ -68,21 +69,16 @@ class MappingManager:
         temp_file = Path(temp_path)
 
         try:
-            with temp_file.open("w", encoding="utf-8") as f:
+            with os.fdopen(temp_fd, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
-            os.close(temp_fd)
-            ensure_secure_permissions(temp_file)
             temp_file.replace(filepath)
+            ensure_secure_permissions(filepath)
         except Exception:
             temp_file.unlink(missing_ok=True)
             raise
 
-    def save(self, filepath: Path, merge: bool = True) -> None:
-        """Save mapping to file."""
-        logger.debug(f"Saving mapping to {filepath}")
-
-        payload = self._build_payload()
-
+    def _save_inner(self, filepath: Path, payload: dict[str, Any], merge: bool) -> None:
+        """Execute the merge-check-write cycle (caller holds any lock)."""
         if merge:
             self._merge_existing(filepath, payload)
 
@@ -96,8 +92,30 @@ class MappingManager:
             self._write_atomic(filepath, payload)
         except OSError as e:
             raise FileOperationError(
-                f"Cannot write mapping file: {e}", "Check file permissions and disk space"
+                f"Cannot write mapping file: {e}",
+                "Check file permissions and disk space",
             ) from e
+
+    def save(self, filepath: Path, merge: bool = True) -> None:
+        """Save mapping to file."""
+        logger.debug(f"Saving mapping to {filepath}")
+
+        payload = self._build_payload()
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+
+        lock_path = filepath.with_suffix(".lock")
+        try:
+            with lock_path.open("w") as lock_file:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+                try:
+                    self._save_inner(filepath, payload, merge)
+                finally:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        except OSError as e:
+            if isinstance(e, (FileOperationError, MappingError)):
+                raise
+            logger.debug(f"Could not acquire lock ({e}), saving without lock")
+            self._save_inner(filepath, payload, merge)
 
         log_operation("mapping_saved", path=str(filepath), entries=len(payload["mappings"]))
 

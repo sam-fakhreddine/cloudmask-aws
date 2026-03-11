@@ -237,7 +237,7 @@ wheels = [
 
 [[package]]
 name = "cloudmask-aws"
-version = "0.3.0"
+version = "0.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
