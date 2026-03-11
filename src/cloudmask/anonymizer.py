@@ -4,8 +4,13 @@ import hashlib
 import re
 
 from .config.config import Config
-from .utils.cache import LRUCache
-from .utils.patterns import AWS_ACCOUNT_PATTERN, get_aws_patterns, is_valid_ip
+from .utils.patterns import (
+    AWS_ACCOUNT_PATTERN,
+    DOMAIN_PATTERN,
+    IP_ADDRESS_PATTERN,
+    get_aws_patterns,
+    is_valid_ip,
+)
 
 
 class Anonymizer:
@@ -16,7 +21,23 @@ class Anonymizer:
         self.config = config
         self.seed = seed
         self.mapping: dict[str, str] = {}
-        self._cache = LRUCache(maxsize=1000)
+
+        self._compiled_custom: list[tuple[re.Pattern[str], str]] = [
+            (re.compile(cp.pattern, re.IGNORECASE), cp.name)
+            for cp in config.custom_patterns
+        ]
+
+        _companies = [c for c in config.company_names if c.strip()]
+        self._compiled_company: re.Pattern[str] | None = (
+            re.compile(
+                "|".join(
+                    re.escape(c) for c in sorted(_companies, key=len, reverse=True)
+                ),
+                re.IGNORECASE,
+            )
+            if _companies
+            else None
+        )
 
     def _hash(self, value: str, prefix: str = "") -> str:
         """Generate deterministic hash."""
@@ -25,7 +46,7 @@ class Anonymizer:
 
     def _anonymize_by_type(self, original: str, resource_type: str) -> str:
         """Anonymize based on resource type."""
-        if cached := self.mapping.get(original) or self._cache.get(original):
+        if cached := self.mapping.get(original):
             return cached
 
         match resource_type:
@@ -41,7 +62,6 @@ class Anonymizer:
                 anonymized = self._hash(original, resource_type)[:12]
 
         self.mapping[original] = anonymized
-        self._cache.put(original, anonymized)
         return anonymized
 
     def _hash_to_account(self, original: str) -> str:
@@ -103,11 +123,9 @@ class Anonymizer:
             return cached
 
         if original.startswith("arn:aws:"):
-            # Anonymize account IDs within ARN
             result = AWS_ACCOUNT_PATTERN.sub(
                 lambda m: self._anonymize_by_type(m.group(0), "account"), original
             )
-            # Anonymize resource IDs within ARN (but not the ARN pattern itself)
             from .utils.patterns import AWS_RESOURCE_PATTERN
 
             result = AWS_RESOURCE_PATTERN.sub(lambda m: self._anonymize_aws_resource(m), result)
@@ -127,40 +145,27 @@ class Anonymizer:
         """Anonymize text."""
         result = text
 
-        # AWS resources
         for pattern in get_aws_patterns():
             result = pattern.sub(self._anonymize_aws_resource, result)
 
-        # Account IDs
         result = AWS_ACCOUNT_PATTERN.sub(
             lambda m: self._anonymize_by_type(m.group(0), "account"), result
         )
 
-        # Custom patterns
-        for custom in self.config.custom_patterns:
-            pattern_name = custom.name
-            result = re.sub(
-                custom.pattern,
-                lambda m, name=pattern_name: self._anonymize_by_type(m.group(0), name),  # type: ignore[misc]
+        for compiled, name in self._compiled_custom:
+            result = compiled.sub(
+                lambda m, n=name: self._anonymize_by_type(m.group(0), n),  # type: ignore[misc]
                 result,
-                flags=re.IGNORECASE,
             )
 
-        # Company names
-        for company in sorted(self.config.company_names, key=len, reverse=True):
-            if company.strip():
-                company_name = company
-                result = re.sub(
-                    re.escape(company),
-                    lambda _m, c=company_name: self._anonymize_by_type(c, "company"),  # type: ignore[misc]
-                    result,
-                    flags=re.IGNORECASE,
-                )
+        if self._compiled_company:
+            result = self._compiled_company.sub(
+                lambda m: self._anonymize_by_type(m.group(0), "company"),
+                result,
+            )
 
-        # IPs
         if self.config.anonymize_ips:
-            result = re.sub(
-                r"\b(?:\d{1,3}\.){3}\d{1,3}\b",
+            result = IP_ADDRESS_PATTERN.sub(
                 lambda m: (
                     self._anonymize_by_type(m.group(0), "ip")
                     if is_valid_ip(m.group(0))
@@ -169,13 +174,10 @@ class Anonymizer:
                 result,
             )
 
-        # Domains
         if self.config.anonymize_domains:
-            result = re.sub(
-                r"\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]\b",
+            result = DOMAIN_PATTERN.sub(
                 lambda m: self._anonymize_by_type(m.group(0), "domain"),
                 result,
-                flags=re.IGNORECASE,
             )
 
         return result

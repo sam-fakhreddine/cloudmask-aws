@@ -1,7 +1,5 @@
 """CloudMask - Refactored core module."""
 
-__version__ = "0.2.0"
-
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
