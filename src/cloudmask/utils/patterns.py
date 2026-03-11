@@ -3,14 +3,41 @@
 import re
 from functools import lru_cache
 
-# Pre-compiled patterns for better performance
-# AWS resource IDs are typically 8 or 17 hexadecimal characters
-# We use 3-17 to support test IDs
-# For 3-char IDs: allow any alphanumeric combination
-# For 4+ chars: require hex to avoid matching malformed IDs like "vpc-123i" in "vpc-123i-456"
+AWS_RESOURCE_PREFIXES = frozenset(
+    {
+        "vpc",
+        "subnet",
+        "sg",
+        "igw",
+        "rtb",
+        "eni",
+        "eip",
+        "vol",
+        "snap",
+        "ami",
+        "i",
+        "r",
+        "lt",
+        "asg",
+        "elb",
+        "tg",
+        "elbv2",
+        "natgw",
+        "vpce",
+        "acl",
+        "pcx",
+        "vgw",
+        "cgw",
+        "vpn",
+        "dopt",
+        "nacl",
+    }
+)
+
+_PREFIX_ALT = "|".join(sorted(AWS_RESOURCE_PREFIXES, key=len, reverse=True))
+
 AWS_RESOURCE_PATTERN = re.compile(
-    r"\b(vpc|subnet|sg|igw|rtb|eni|eip|vol|snap|ami|i|r|lt|asg|elb|tg|elbv2|"
-    r"natgw|vpce|acl|pcx|vgw|cgw|vpn|dopt|nacl)-(?:[0-9a-z]{3}(?![0-9a-z])|[0-9a-f]{4,17})\b",
+    rf"\b({_PREFIX_ALT})-(?:[0-9a-z]{{3}}(?![0-9a-z])|[0-9a-f]{{4,17}})\b",
     re.IGNORECASE,
 )
 
@@ -93,7 +120,6 @@ def is_valid_ip(ip: str) -> bool:
     if not IP_ADDRESS_PATTERN.match(ip):
         return False
 
-    # Validate octets
     try:
         parts = ip.split(".")
         if len(parts) != 4:
