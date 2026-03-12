@@ -447,7 +447,7 @@ python3 scripts/install-hooks.py --uninstall
 ## Known Limitations
 
 | Limitation | Detail |
-|---|---|
+| --- | --- |
 | RTK Bash commands | `git`, `npm`, `docker` etc. skip Bash wrapping to avoid `updatedInput` conflicts with RTK rewrite hook |
 | Grep path display | Search results show `~/.cloudmask/hooks/shadow/...` paths instead of real paths |
 | File size cap | Files > 10 MB are passed through unmasked |

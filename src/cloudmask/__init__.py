@@ -1,5 +1,7 @@
 """CloudMask - AWS Infrastructure Anonymizer."""
 
+from typing import Any
+
 from .__version__ import __version__
 from .config.config import Config, CustomPattern
 from .core import (
@@ -47,7 +49,7 @@ _LAZY_IMPORTS = {
 }
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     if name in _LAZY_IMPORTS:
         import importlib
 

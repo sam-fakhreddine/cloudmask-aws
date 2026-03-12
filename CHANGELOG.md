@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-12
+
+### Added
+- Claude Code hooks: full tool coverage (Read, Write, Edit, Grep, Bash)
+- Shadow file anonymization with symlinks for non-sensitive files
+- Bash output masking via `mask-output.py` line-by-line pipe
+- Real-file demask for new files (CSVs, reports) created with anonymized content
+- Prompt blocking hook with masked prompt save/resubmit workflow
+- Encrypted mapping file (Fernet/AES-128, PBKDF2 key derivation)
+- Rotating file logs (25MB x 3 backups) for all hooks
+- Comprehensive hook documentation with Mermaid sequence diagrams
+
+### Changed
+- Deterministic anonymization now uses HMAC-SHA256 with configurable seed
+- Lazy `__getattr__` imports in `__init__.py` for reduced startup overhead
+- Mapping manager uses file locking (`fcntl.flock`) for concurrent access
+
 ## [0.1.5] - 2025-10-09
 
 ### Changed

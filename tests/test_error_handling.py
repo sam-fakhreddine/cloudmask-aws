@@ -210,15 +210,13 @@ class TestErrorHandling:
     def test_config_yaml_with_extra_fields(self, tmp_path):
         """Test config YAML with extra unknown fields."""
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 company_names:
   - Test Corp
 unknown_field: value
 another_unknown: 123
 seed: test-seed
-"""
-        )
+""")
 
         # Should load successfully, ignoring unknown fields
         config = Config.from_yaml(config_file)
@@ -237,12 +235,10 @@ seed: test-seed
     def test_config_with_null_values(self, tmp_path):
         """Test config with null/None values in YAML."""
         config_file = tmp_path / "null_config.yaml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 company_names: null
 seed: test-seed
-"""
-        )
+""")
 
         with pytest.raises(ConfigurationError):
             Config.from_yaml(config_file)
