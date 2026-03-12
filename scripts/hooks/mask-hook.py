@@ -33,6 +33,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _hook_common import (
+    CLOUDMASK_MARKER,
     MAPPING_PATH,
     SHADOW_ROOT,
     block_tool,
@@ -137,6 +138,10 @@ def _handle_read(file_path: str) -> bool:
     try:
         content = real.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
+        return False
+
+    # Skip files already marked as sanitized by CloudMask
+    if CLOUDMASK_MARKER in content:
         return False
 
     if not _QUICK_SCAN.search(content):

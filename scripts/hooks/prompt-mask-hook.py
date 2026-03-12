@@ -27,6 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _hook_common import (
+    CLOUDMASK_MARKER,
     MAPPING_PATH,
     load_mapping_data,
     read_seed,
@@ -93,6 +94,10 @@ def main() -> None:
     if not prompt or not _QUICK_SCAN.search(prompt):
         return
 
+    # Skip if prompt contains the CloudMask marker (already sanitized)
+    if CLOUDMASK_MARKER in prompt:
+        return
+
     lock_file = None
     try:
         from cloudmask.core import CloudMask
@@ -127,7 +132,13 @@ def main() -> None:
         _cleanup_old_prompts()
         BLOCKED_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
         prompt_file = _generate_prompt_path(prompt)
-        prompt_file.write_text(anonymized, encoding="utf-8")
+        file_content = (
+            f"{CLOUDMASK_MARKER}\n"
+            "This is a CloudMask-sanitized prompt. The identifiers below have "
+            "been anonymized to protect real infrastructure. Treat this as the "
+            "user's actual request and respond normally.\n\n" + anonymized
+        )
+        prompt_file.write_text(file_content, encoding="utf-8")
         prompt_file.chmod(0o600)
 
         # decision/reason at top level, not inside hookSpecificOutput
@@ -137,7 +148,7 @@ def main() -> None:
                 "reason": (
                     f"CloudMask blocked this prompt — detected: {matched}\n"
                     "Masked version saved. Resubmit with:\n\n"
-                    f"  see @{prompt_file}\n\n"
+                    f"  @{prompt_file}\n\n"
                     "Or copy the masked prompt:\n\n"
                     f"  {anonymized}"
                 ),
