@@ -30,7 +30,13 @@ CLOUDMASK_DIR = Path.home() / ".cloudmask"
 CLOUDMASK_HOOKS_DIR = CLOUDMASK_DIR / "hooks"
 SEED_FILE = CLOUDMASK_DIR / "seed"
 
-HOOK_FILES = ["_hook_common.py", "mask-hook.py", "demask-hook.py", "prompt-mask-hook.py", "mask-output.py"]
+HOOK_FILES = [
+    "_hook_common.py",
+    "mask-hook.py",
+    "demask-hook.py",
+    "prompt-mask-hook.py",
+    "mask-output.py",
+]
 
 HOOK_TAG = "cloudmask-hooks"
 
@@ -266,7 +272,7 @@ def install(seed: str | None = None) -> int:
         seed_display = (
             f"{status['seed'][:4]}...{status['seed'][-4:]}"
             if status["seed"] and len(status["seed"]) > 8
-            else "(short seed)"
+            else status["seed"] or "not set"
         )
         print(f"\n  CloudMask hooks are already installed (seed: {seed_display})")
         choice = input("  Reinstall? [y/N]: ").strip().lower()

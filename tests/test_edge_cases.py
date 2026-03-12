@@ -1,5 +1,6 @@
 """Edge case tests for CloudMask."""
 
+import re
 import tempfile
 
 from cloudmask import CloudMask, CloudUnmask, Config, CustomPattern, anonymize_dict
@@ -79,6 +80,38 @@ class TestEdgeCases:
         assert upper_vpc not in result
         assert lower_vpc not in result
         assert other_vpc not in result
+
+    def test_standalone_account_ids_unchanged_when_disabled(self):
+        """Standalone 12-digit account IDs remain unchanged when anonymization is disabled."""
+        config = Config(anonymize_standalone_accounts=False)
+        mask = CloudMask(config=config, seed="test")
+        text = "account 123456789012 and 987654321098"
+        result = mask.anonymize(text)
+        assert "123456789012" in result
+        assert "987654321098" in result
+
+    def test_mixed_arn_and_standalone_account_reuses_mapping(self):
+        """Standalone account ID reuses ARN-derived mapping without double anonymization."""
+        config = Config(anonymize_standalone_accounts=True)
+        mask = CloudMask(config=config, seed="test")
+        acct = "918521575691"
+        arn = f"arn:aws:iam::{acct}:role/ExampleRole"
+        text = f"{arn} some text {acct}"
+        result = mask.anonymize(text)
+        account_ids = re.findall(r"\b\d{12}\b", result)
+        assert len(account_ids) == 2
+        assert len(set(account_ids)) == 1
+        assert account_ids[0] != acct
+
+    def test_standalone_account_anonymized_when_enabled(self):
+        """Standalone account ID is anonymized when enabled."""
+        config = Config(anonymize_standalone_accounts=True)
+        mask = CloudMask(config=config, seed="test")
+        acct = "918521575691"
+        result = mask.anonymize(f"account {acct}")
+        assert acct not in result
+        match = re.search(r"\d{12}", result)
+        assert match is not None
 
     def test_account_id_in_arn(self):
         """Test account ID within ARN is anonymized."""

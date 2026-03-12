@@ -60,26 +60,63 @@ MAX_SHADOW_FILES = 1000
 
 _DEFAULT_INCLUDE_EXT = frozenset(
     {
-        ".tf", ".tfvars", ".hcl", ".yaml", ".yml", ".json", ".toml", ".py",
-        ".js", ".ts", ".jsx", ".tsx", ".sh", ".bash", ".zsh", ".cfg", ".ini",
-        ".conf", ".env", ".properties", ".txt", ".md", ".rst", ".log", ".csv",
-        ".xml", ".go", ".rs", ".java", ".rb",
+        ".tf",
+        ".tfvars",
+        ".hcl",
+        ".yaml",
+        ".yml",
+        ".json",
+        ".toml",
+        ".py",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".cfg",
+        ".ini",
+        ".conf",
+        ".env",
+        ".properties",
+        ".txt",
+        ".md",
+        ".rst",
+        ".log",
+        ".csv",
+        ".xml",
+        ".go",
+        ".rs",
+        ".java",
+        ".rb",
     }
 )
 
-# Override via env: CLOUDMASK_INCLUDE_EXT=".sql,.jsonnet,.hcl"
+# Full override via env: CLOUDMASK_INCLUDE_EXT=".sql,.jsonnet,.hcl"
 _ext_override = os.environ.get("CLOUDMASK_INCLUDE_EXT")
-INCLUDE_EXT = (
-    frozenset(e.strip() for e in _ext_override.split(",") if e.strip()) | _DEFAULT_INCLUDE_EXT
-    if _ext_override
-    else _DEFAULT_INCLUDE_EXT
-)
+if _ext_override:
+    INCLUDE_EXT = frozenset(e.strip() for e in _ext_override.split(",") if e.strip())
+else:
+    INCLUDE_EXT = _DEFAULT_INCLUDE_EXT
 
 _EXCLUDED_DIRS = frozenset(
     {
-        ".git", "node_modules", ".venv", "venv", "__pycache__",
-        ".tox", ".mypy_cache", ".ruff_cache", ".pytest_cache",
-        "dist", "build", ".eggs", ".cloudmask", ".worktrees", ".temp",
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".tox",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+        "dist",
+        "build",
+        ".eggs",
+        ".cloudmask",
+        ".worktrees",
+        ".temp",
     }
 )
 
@@ -87,8 +124,16 @@ _EXCLUDED_DIRS = frozenset(
 # updatedInput conflicts (RTK and mask-hook both return updatedInput).
 _RTK_COMMANDS = frozenset(
     {
-        "git", "npm", "npx", "yarn", "pnpm", "cargo",
-        "docker", "podman", "rustup", "brew",
+        "git",
+        "npm",
+        "npx",
+        "yarn",
+        "pnpm",
+        "cargo",
+        "docker",
+        "podman",
+        "rustup",
+        "brew",
     }
 )
 

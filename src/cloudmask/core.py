@@ -69,6 +69,7 @@ class CloudUnmask:
                 self._sorted_replacements = sorted(
                     self.reverse_mapping.items(), key=lambda x: len(x[0]), reverse=True
                 )
+                self._compiled_pattern: re.Pattern[str] | None = None
             case (None, Path() as f):
                 logger.debug(f"Loading mapping from {f}")
                 if not f.exists():
@@ -83,6 +84,7 @@ class CloudUnmask:
                     self._sorted_replacements = sorted(
                         self.reverse_mapping.items(), key=lambda x: len(x[0]), reverse=True
                     )
+                    self._compiled_pattern = None
                 except json.JSONDecodeError as e:
                     raise MappingError(
                         f"Invalid JSON in mapping file: {e}",
@@ -92,6 +94,7 @@ class CloudUnmask:
                 logger.debug("Initializing with empty mapping")
                 self.reverse_mapping = {}
                 self._sorted_replacements = []
+                self._compiled_pattern = None
             case _:
                 raise ValidationError(
                     "Provide either mapping or mapping_file, not both",
