@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from .exceptions import FileOperationError, MappingError
-from .io.storage import ensure_secure_permissions
 from .logging import log_operation, logger
 
 
@@ -20,10 +19,11 @@ class MappingManager:
         """Initialize mapping manager with seed."""
         self.seed = seed
         self.mapping: dict[str, str] = {}
+        self._seed_hash = hashlib.sha256(seed.encode()).hexdigest()[:16] if seed else ""
 
     def _get_seed_hash(self) -> str:
         """Get hash of current seed."""
-        return hashlib.sha256(self.seed.encode()).hexdigest()[:16]
+        return self._seed_hash
 
     def _build_payload(self) -> dict[str, Any]:
         """Build mapping payload with metadata."""
@@ -52,11 +52,14 @@ class MappingManager:
                         "Cannot merge mappings created with different seeds",
                         "Use the same seed for all mappings",
                     )
-                payload["mappings"] = {**existing.get("mappings", {}), **self.mapping}
+                existing_mappings = existing.get("mappings", {})
+                existing_mappings.update(self.mapping)
+                payload["mappings"] = existing_mappings
                 logger.debug(f"Merged {len(existing.get('mappings', {}))} existing mappings")
             else:
                 logger.warning("Existing mapping has no seed metadata")
-                payload["mappings"] = {**existing, **self.mapping}
+                existing.update(self.mapping)
+                payload["mappings"] = existing
 
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Could not load existing mapping: {e}")
@@ -70,9 +73,9 @@ class MappingManager:
 
         try:
             with os.fdopen(temp_fd, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+                json.dump(data, f, separators=(",", ":"))
+            temp_file.chmod(0o600)
             temp_file.replace(filepath)
-            ensure_secure_permissions(filepath)
         except Exception:
             temp_file.unlink(missing_ok=True)
             raise
@@ -96,6 +99,26 @@ class MappingManager:
                 "Check file permissions and disk space",
             ) from e
 
+    def _acquire_lock(self, filepath: Path):
+        """Acquire file lock, returning lock file or None on failure."""
+        lock_path = filepath.with_suffix(".lock")
+        try:
+            lock_file = lock_path.open("w")
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            return lock_file
+        except OSError as e:
+            logger.warning(f"Could not acquire lock ({e}), proceeding without lock")
+            return None
+
+    def _release_lock(self, lock_file) -> None:
+        """Release file lock."""
+        if lock_file is not None:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                lock_file.close()
+            except OSError:
+                pass
+
     def save(self, filepath: Path, merge: bool = True) -> None:
         """Save mapping to file."""
         logger.debug(f"Saving mapping to {filepath}")
@@ -103,19 +126,11 @@ class MappingManager:
         payload = self._build_payload()
         filepath.parent.mkdir(parents=True, exist_ok=True)
 
-        lock_path = filepath.with_suffix(".lock")
+        lock_file = self._acquire_lock(filepath)
         try:
-            with lock_path.open("w") as lock_file:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-                try:
-                    self._save_inner(filepath, payload, merge)
-                finally:
-                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-        except OSError as e:
-            if isinstance(e, (FileOperationError, MappingError)):
-                raise
-            logger.debug(f"Could not acquire lock ({e}), saving without lock")
             self._save_inner(filepath, payload, merge)
+        finally:
+            self._release_lock(lock_file)
 
         log_operation("mapping_saved", path=str(filepath), entries=len(payload["mappings"]))
 
