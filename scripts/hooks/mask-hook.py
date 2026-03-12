@@ -40,15 +40,20 @@ Limitations
 - Requires cloudmask-aws to be importable by the python3 in your PATH.
 """
 
+import fcntl
 import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 SHADOW_ROOT = Path.home() / ".cloudmask" / "hooks" / "shadow"
 MAPPING_PATH = Path.home() / ".cloudmask" / "hooks" / "mapping.json"
-SEED = os.environ.get("CLOUDMASK_SEED", "claude-hook-default-seed")
+SEED = os.environ.get("CLOUDMASK_SEED", "")
+if not SEED:
+    print("CLOUDMASK_SEED not set. Run: python3 scripts/install-hooks.py", file=sys.stderr)
+    sys.exit(0)  # Exit cleanly — hook produces no output, Claude reads file normally
 MAX_FILE_SIZE = 10_000_000
 
 INCLUDE_EXT = frozenset(
@@ -98,7 +103,11 @@ _QUICK_SCAN = re.compile(
 
 def _real_to_shadow(real_path: str) -> Path:
     """Convert a real absolute path to its shadow counterpart."""
-    return SHADOW_ROOT / real_path.lstrip("/")
+    resolved = Path(real_path).resolve()
+    shadow = SHADOW_ROOT / str(resolved).lstrip("/")
+    # Validate shadow stays under SHADOW_ROOT
+    shadow.resolve().relative_to(SHADOW_ROOT.resolve())
+    return shadow
 
 
 def _shadow_exists(real_path: str) -> bool:
@@ -144,31 +153,55 @@ def _handle_read(file_path: str) -> None:
         return
 
     try:
-        from cloudmask import CloudMask
+        from cloudmask.core import CloudMask
 
         mask = CloudMask(seed=SEED)
 
         if MAPPING_PATH.exists():
             mask.load_mapping(MAPPING_PATH)
+        mapping_size_before = len(mask.mapping)
 
         anonymized = mask.anonymize(content)
 
         shadow = _real_to_shadow(file_path)
-        shadow.parent.mkdir(parents=True, exist_ok=True)
-        shadow.write_text(anonymized, encoding="utf-8")
+        shadow.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # Atomic write with secure permissions
+        fd, tmp = tempfile.mkstemp(dir=shadow.parent, prefix=".mask_", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(anonymized)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, shadow)
+        except BaseException:
+            os.unlink(tmp)
+            raise
 
-        MAPPING_PATH.parent.mkdir(parents=True, exist_ok=True)
-        mask.save_mapping(MAPPING_PATH)
+        if len(mask.mapping) > mapping_size_before:
+            MAPPING_PATH.parent.mkdir(parents=True, exist_ok=True)
+            mask.save_mapping(MAPPING_PATH)
 
         _respond({"file_path": str(shadow)})
-    except Exception:
+    except Exception as e:
+        print(f"cloudmask mask-hook error: {e!r}", file=sys.stderr)
         return
 
 
 def _handle_write_or_edit(file_path: str) -> None:
     """Redirect Write/Edit to the shadow copy if the file was previously masked."""
-    if _shadow_exists(file_path):
-        _respond({"file_path": str(_real_to_shadow(file_path))})
+    if not _shadow_exists(file_path):
+        return
+    shadow = _real_to_shadow(file_path)
+    real = Path(file_path)
+    # If real file is newer than shadow, shadow is stale — re-anonymize first
+    if real.is_file():
+        try:
+            if real.stat().st_mtime > shadow.stat().st_mtime:
+                _handle_read(file_path)
+                if not shadow.is_file():
+                    return
+        except OSError:
+            pass
+    _respond({"file_path": str(shadow)})
 
 
 def main() -> None:
