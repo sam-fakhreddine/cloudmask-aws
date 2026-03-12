@@ -38,6 +38,7 @@ HOOK_FILES = [
     "demask-hook.py",
     "prompt-mask-hook.py",
     "mask-output.py",
+    "sync-cloudmask-hooks.py",
 ]
 
 HOOK_TAG = "cloudmask-hooks"
@@ -83,6 +84,19 @@ def _build_hook_config() -> dict:
                             "type": "command",
                             "command": f"{py} {shlex.quote(str(HOOKS_DIR / 'prompt-mask-hook.py'))}",
                             "timeout": 30,
+                        }
+                    ],
+                }
+            ],
+            "SessionStart": [
+                {
+                    "matcher": "",
+                    "_tag": HOOK_TAG,
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": f"{py} {shlex.quote(str(HOOKS_DIR / 'sync-cloudmask-hooks.py'))}",
+                            "timeout": 10,
                         }
                     ],
                 }
@@ -198,7 +212,7 @@ def _check_cloudmask_importable() -> bool:
         return False
     import subprocess
 
-    result = subprocess.run(  # nosec
+    result = subprocess.run(
         [str(VENV_PYTHON), "-c", "import cloudmask"],
         capture_output=True,
     )
@@ -215,14 +229,12 @@ def _setup_venv() -> bool:
 
     CLOUDMASK_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
 
-    # --- Create venv ---
     venv_created = False
 
-    # Try uv first
     uv_bin = shutil.which("uv")
     if uv_bin:
         print(f"  Creating venv with uv: {VENV_DIR}")
-        result = subprocess.run(  # nosec
+        result = subprocess.run(
             [uv_bin, "venv", str(VENV_DIR), "--python", "3.10"],
             capture_output=True,
             text=True,
@@ -230,20 +242,18 @@ def _setup_venv() -> bool:
         if result.returncode == 0 and VENV_PYTHON.is_file():
             venv_created = True
         else:
-            # Retry without --python constraint
-            result = subprocess.run(  # nosec
+            result = subprocess.run(
                 [uv_bin, "venv", str(VENV_DIR)],
                 capture_output=True,
                 text=True,
             )
             venv_created = result.returncode == 0 and VENV_PYTHON.is_file()
 
-    # Fallback: python3 -m venv
     if not venv_created:
         py3 = shutil.which("python3")
         if py3:
             print(f"  Creating venv with python3 -m venv: {VENV_DIR}")
-            result = subprocess.run(  # nosec
+            result = subprocess.run(
                 [py3, "-m", "venv", str(VENV_DIR)],
                 capture_output=True,
                 text=True,
@@ -254,13 +264,11 @@ def _setup_venv() -> bool:
         print("  ERROR: Could not create venv. Install uv or ensure python3 -m venv works.")
         return False
 
-    # --- Install cloudmask-aws ---
     installed = False
 
-    # Try uv pip install first (faster)
     if uv_bin:
         print("  Installing cloudmask-aws with uv pip...")
-        result = subprocess.run(  # nosec
+        result = subprocess.run(
             [uv_bin, "pip", "install", "--python", str(VENV_PYTHON), f"{REPO_ROOT}"],
             capture_output=True,
             text=True,
@@ -269,12 +277,11 @@ def _setup_venv() -> bool:
         if not installed:
             print(f"  uv pip install failed: {result.stderr.strip()}")
 
-    # Fallback: venv pip
     if not installed:
         pip_bin = VENV_DIR / "bin" / "pip"
         if pip_bin.is_file():
             print("  Installing cloudmask-aws with pip...")
-            result = subprocess.run(  # nosec
+            result = subprocess.run(
                 [str(pip_bin), "install", str(REPO_ROOT)],
                 capture_output=True,
                 text=True,
@@ -287,8 +294,7 @@ def _setup_venv() -> bool:
         print("  ERROR: Could not install cloudmask-aws into the venv.")
         return False
 
-    # Verify
-    result = subprocess.run(  # nosec
+    result = subprocess.run(
         [str(VENV_PYTHON), "-c", "import cloudmask; print(cloudmask.__version__)"],
         capture_output=True,
         text=True,
