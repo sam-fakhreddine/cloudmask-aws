@@ -1,10 +1,10 @@
 {
-  "task_id": "TASK-001",
+  "task_id": "TASK-003",
   "status": "success",
-  "files_changed": ["src/cloudmask/utils/patterns.py"],
+  "files_changed": ["src/cloudmask/config/config.py"],
   "tests_added": 0,
   "tests_passed": 267,
   "quality_checks": "skipped",
-  "summary": "Extracted AWS_RESOURCE_PREFIXES frozenset constant (26 prefixes) from inline regex in patterns.py and rebuilt AWS_RESOURCE_PATTERN from it using sorted alternation (longest-first). All 267 existing tests pass. Note: acceptance criterion says 25 prefixes but the original regex contained 26 -- the frozenset faithfully preserves all original prefixes.",
+  "summary": "Add DEFAULT_SEED constant and weak seed warning in Config.__post_init__",
   "properties_addressed": []
 }
