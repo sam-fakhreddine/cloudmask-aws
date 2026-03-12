@@ -89,9 +89,6 @@ def _load_reverse_mapping() -> dict[str, str]:
             except (json.JSONDecodeError, UnicodeDecodeError):
                 return {}
 
-        with contextlib.suppress(OSError):
-            MAPPING_PATH.chmod(0o600)
-
         forward = data.get("mappings", {}) if "_metadata" in data else data
 
         return {v: k for k, v in forward.items() if isinstance(k, str) and isinstance(v, str)}
@@ -143,7 +140,7 @@ def _atomic_write(content: str, target: Path) -> None:
             f.write(content)
         Path(tmp).chmod(0o600)
         Path(tmp).replace(target)
-    except BaseException:
+    except Exception:
         with contextlib.suppress(OSError):
             Path(tmp).unlink()
         raise
@@ -175,8 +172,8 @@ def _handle_shadow_write(file_path: str) -> None:
         _atomic_write(restored, real_path)
         log.info("Restored %s -> %s (%d reverse mappings)", shadow, real_path, len(reverse))
     except Exception as e:
-        log.error("demask-hook shadow error: %r", e)
-        print(f"cloudmask demask-hook error: {e!r}", file=sys.stderr)
+        log.error("demask-hook shadow error: %s", type(e).__name__)
+        print(f"cloudmask demask-hook error: {type(e).__name__}", file=sys.stderr)
 
 
 def _handle_real_write(file_path: str) -> None:

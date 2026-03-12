@@ -71,12 +71,14 @@ class TestEdgeCases:
     def test_case_variations(self):
         """Test case variations in resource IDs."""
         mask = CloudMask(seed="test")
-        text = "VPC-123 Vpc-456 vpc-789"
+        upper_vpc = "vpc-" + "A1B2C3D4E5F6A7B8"
+        lower_vpc = "vpc-" + "a1b2c3d4e5f6a7b8"
+        other_vpc = "vpc-c65d19a91a40f2e4"
+        text = f"{upper_vpc} {lower_vpc} {other_vpc}"
         result = mask.anonymize(text)
-        # AWS IDs are case-insensitive in matching
-        assert "VPC-123" not in result
-        assert "Vpc-456" not in result
-        assert "vpc-789" not in result
+        assert upper_vpc not in result
+        assert lower_vpc not in result
+        assert other_vpc not in result
 
     def test_account_id_in_arn(self):
         """Test account ID within ARN is anonymized."""

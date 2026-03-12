@@ -263,7 +263,12 @@ def install(seed: str | None = None) -> int:
 
     status = _is_installed()
     if status["settings_configured"]:
-        print(f"\n  CloudMask hooks are already installed (seed: {status['seed']})")
+        seed_display = (
+            f"{status['seed'][:4]}...{status['seed'][-4:]}"
+            if status["seed"] and len(status["seed"]) > 8
+            else "(short seed)"
+        )
+        print(f"\n  CloudMask hooks are already installed (seed: {seed_display})")
         choice = input("  Reinstall? [y/N]: ").strip().lower()
         if choice != "y":
             print("  Aborted.")

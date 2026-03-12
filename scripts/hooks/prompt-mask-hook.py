@@ -164,8 +164,8 @@ def main() -> None:
             sys.stdout,
         )
     except Exception as e:
-        log.error("prompt-mask-hook error: %r", e)
-        print(f"cloudmask prompt-mask-hook error: {e!r}", file=sys.stderr)
+        log.error("prompt-mask-hook error: %s", type(e).__name__)
+        print(f"cloudmask prompt-mask-hook error: {type(e).__name__}", file=sys.stderr)
     finally:
         if lock_file is not None:
             try:

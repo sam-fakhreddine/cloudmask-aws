@@ -17,14 +17,12 @@ class TestTOMLSupport:
             pytest.skip("TOML support requires Python 3.11+")
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 seed = "toml-test-seed"
 preserve_prefixes = true
 anonymize_ips = false
 company_names = ["Company A", "Company B"]
-"""
-        )
+""")
 
         config = load_config(config_file, format="toml", use_env=False)
         assert config.seed == "toml-test-seed"
@@ -38,16 +36,14 @@ company_names = ["Company A", "Company B"]
             pytest.skip("TOML support requires Python 3.11+")
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [cloudmask]
 seed = "section-seed"
 preserve_prefixes = false
 
 [other_section]
 ignored = "value"
-"""
-        )
+""")
 
         data = load_from_toml(config_file)
         assert data["seed"] == "section-seed"
@@ -81,8 +77,7 @@ ignored = "value"
             pytest.skip("TOML support requires Python 3.11+")
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 seed = "pattern-seed"
 
 [[custom_patterns]]
@@ -92,8 +87,7 @@ name = "ticket"
 [[custom_patterns]]
 pattern = "PROJ-[A-Z]+"
 name = "project"
-"""
-        )
+""")
 
         config = load_config(config_file, use_env=False)
         assert config.seed == "pattern-seed"

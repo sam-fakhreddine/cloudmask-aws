@@ -54,8 +54,11 @@ AWS_SERVICE_URL_PATTERN = re.compile(
 IP_ADDRESS_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
 DOMAIN_PATTERN = re.compile(
-    r"\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]\b", re.IGNORECASE
+    r"\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,13}\b", re.IGNORECASE
 )
+
+
+_MAX_PATTERN_LENGTH = 1000
 
 
 @lru_cache(maxsize=256)
@@ -63,11 +66,16 @@ def compile_pattern(pattern: str) -> re.Pattern[str]:
     """Compile and cache regex patterns.
 
     Args:
-        pattern: Regex pattern string
+        pattern: Regex pattern string (max 1000 chars)
 
     Returns:
         Compiled pattern
+
+    Raises:
+        ValueError: If pattern exceeds max length
     """
+    if len(pattern) > _MAX_PATTERN_LENGTH:
+        raise ValueError(f"Pattern too long ({len(pattern)} chars, max {_MAX_PATTERN_LENGTH})")
     return re.compile(pattern)
 
 

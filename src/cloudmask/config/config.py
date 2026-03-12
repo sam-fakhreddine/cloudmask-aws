@@ -26,6 +26,9 @@ class CustomPattern:
             ) from e
 
 
+_DEFAULT_SEED = "default-seed"
+
+
 @dataclass
 class Config:
     """Configuration management."""
@@ -37,12 +40,15 @@ class Config:
     preserve_prefixes: bool = True
     anonymize_ips: bool = True
     anonymize_domains: bool = False
-    seed: str = "default-seed"
+    anonymize_standalone_accounts: bool = True
+    seed: str = _DEFAULT_SEED
 
-    DEFAULT_SEED = "default-seed"
+    DEFAULT_SEED = _DEFAULT_SEED
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
+        if self.seed is None:
+            self.seed = self.DEFAULT_SEED
         if not isinstance(self.company_names, list):
             raise ConfigurationError(
                 "company_names must be a list", "Use: company_names: ['Company1', 'Company2']"
@@ -111,7 +117,7 @@ class Config:
             ]
 
         log_operation("config_loaded", path=str(config_path))
-        return cls(**{k: v for k, v in data.items() if k in cls.__annotations__})
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
     def to_yaml(self, config_path: Path) -> None:
         """Save configuration to YAML file."""

@@ -94,13 +94,11 @@ def test_quiet_flag(tmp_path):
 def test_validate_config(tmp_path):
     """Test config validation."""
     config_file = tmp_path / "config.yaml"
-    config_file.write_text(
-        """
+    config_file.write_text("""
 company_names:
   - Test Corp
 seed: test-seed-123
-"""
-    )
+""")
 
     result = subprocess.run(
         [

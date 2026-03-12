@@ -1,6 +1,7 @@
 """CloudMask - Refactored core module."""
 
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,7 @@ class CloudMask:
         filepath = Path(filepath) if isinstance(filepath, str) else filepath
         self._mapper.mapping = self.mapping
         self._mapper.save(filepath, merge)
+        self._anonymizer.mapping = self._mapper.mapping
 
     def load_mapping(self, filepath: Path | str) -> None:
         """Load mapping from file."""
@@ -97,11 +99,11 @@ class CloudUnmask:
                 )
 
     def unanonymize(self, text: str) -> str:
-        """Restore original values."""
-        result = text
-        for anonymized, original in self._sorted_replacements:
-            result = result.replace(anonymized, original)
-        return result
+        """Restore original values using single-pass regex replacement."""
+        if not self._sorted_replacements:
+            return text
+        pattern = re.compile("|".join(re.escape(k) for k, _ in self._sorted_replacements))
+        return pattern.sub(lambda m: self.reverse_mapping[m.group(0)], text)
 
     def unanonymize_file(self, input_path: Path, output_path: Path) -> int:
         """Unanonymize a file."""
@@ -132,7 +134,7 @@ class TemporaryMask:
 
 
 def anonymize(
-    text: str, seed: str = "default-seed", **config_options: Any
+    text: str, seed: str = Config.DEFAULT_SEED, **config_options: Any
 ) -> tuple[str, dict[str, str]]:
     """Quick anonymization function."""
     config = Config(seed=seed, **config_options)
