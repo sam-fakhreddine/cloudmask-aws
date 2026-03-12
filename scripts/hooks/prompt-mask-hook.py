@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _hook_common import (
     CLOUDMASK_MARKER,
     MAPPING_PATH,
+    get_logger,
     load_mapping_data,
     read_seed,
     save_mapping_encrypted,
@@ -37,8 +38,12 @@ from _hook_common import (
 from cloudmask.utils.patterns import AWS_RESOURCE_PREFIXES
 
 SEED = read_seed()
+log = get_logger("prompt-mask")
+log.debug("prompt-mask-hook loaded, pid=%d", __import__("os").getpid())
 if not SEED:
+    log.error("No seed configured, exiting")
     sys.exit(0)
+log.debug("Seed resolved, len=%d", len(SEED))
 
 BLOCKED_DIR = Path.home() / ".cloudmask" / ".blockedprompts"
 MAX_AGE_DAYS = 15
@@ -88,14 +93,17 @@ def main() -> None:
     try:
         hook = json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError):
+        log.error("Failed to parse hook input from stdin")
         return
 
     prompt = hook.get("prompt", "")
     if not prompt or not _QUICK_SCAN.search(prompt):
+        log.debug("No sensitive patterns in prompt, passing through")
         return
 
     # Skip if prompt contains the CloudMask marker (already sanitized)
     if CLOUDMASK_MARKER in prompt:
+        log.debug("CLOUDMASK_MARKER found, skipping")
         return
 
     lock_file = None
@@ -156,6 +164,7 @@ def main() -> None:
             sys.stdout,
         )
     except Exception as e:
+        log.error("prompt-mask-hook error: %r", e)
         print(f"cloudmask prompt-mask-hook error: {e!r}", file=sys.stderr)
     finally:
         if lock_file is not None:

@@ -7,16 +7,17 @@ demask-hook.py so that seed reading, crypto, and constants are defined once.
 
 import hashlib
 import json
+import logging
 import os
 import sys
 from functools import lru_cache
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 SHADOW_ROOT = Path.home() / ".cloudmask" / "hooks" / "shadow"
 MAPPING_PATH = Path.home() / ".cloudmask" / "hooks" / "mapping.json"
 SEED_FILE = Path.home() / ".cloudmask" / "seed"
 
-# Marker line embedded in sanitized files to prevent double anonymization
 CLOUDMASK_MARKER = "<!-- CLOUDMASK:SANITIZED -->"
 
 
@@ -151,3 +152,24 @@ def block_tool(reason: str) -> None:
         },
         sys.stdout,
     )
+
+
+LOG_DIR = Path.home() / ".cloudmask" / "logs"
+LOG_FILE = LOG_DIR / "hooks.log"
+_MAX_LOG_BYTES = 25 * 1024 * 1024
+_BACKUP_COUNT = 3
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Get a rotating file logger for hook debugging.
+
+    All hooks share ~/.cloudmask/logs/hooks.log. Rotates at 25 MB, keeps 3 backups.
+    """
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    logger = logging.getLogger(f"cloudmask.hooks.{name}")
+    if not logger.handlers:
+        handler = RotatingFileHandler(LOG_FILE, maxBytes=_MAX_LOG_BYTES, backupCount=_BACKUP_COUNT)
+        handler.setFormatter(logging.Formatter("%(asctime)s [%(name)s] %(levelname)s %(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+    return logger

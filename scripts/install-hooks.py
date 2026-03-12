@@ -30,7 +30,7 @@ CLOUDMASK_DIR = Path.home() / ".cloudmask"
 CLOUDMASK_HOOKS_DIR = CLOUDMASK_DIR / "hooks"
 SEED_FILE = CLOUDMASK_DIR / "seed"
 
-HOOK_FILES = ["_hook_common.py", "mask-hook.py", "demask-hook.py", "prompt-mask-hook.py"]
+HOOK_FILES = ["_hook_common.py", "mask-hook.py", "demask-hook.py", "prompt-mask-hook.py", "mask-output.py"]
 
 HOOK_TAG = "cloudmask-hooks"
 
@@ -41,7 +41,7 @@ def _build_hook_config() -> dict:
         "hooks": {
             "PreToolUse": [
                 {
-                    "matcher": "Read|Write|Edit",
+                    "matcher": "Read|Write|Edit|Grep|Bash",
                     "_tag": HOOK_TAG,
                     "hooks": [
                         {
@@ -332,7 +332,7 @@ def install(seed: str | None = None) -> int:
     - You type a prompt with AWS IDs -> prompt-mask-hook anonymizes it
 
   Limitations:
-    - Grep output and Bash output are NOT masked
+    - Grep and Bash output are masked via shadow redirection and pipe wrapping
     - User prompts are masked via UserPromptSubmit hook
     - Only text files with recognized extensions are processed
     - Files > 10 MB are passed through unmasked
