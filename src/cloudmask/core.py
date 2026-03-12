@@ -19,10 +19,9 @@ class CloudMask:
     def __init__(self, config: Config | None = None, seed: str | None = None):
         """Initialize CloudMask with configuration and seed."""
         self.config = config or Config()
-        self.seed = seed if seed is not None else self.config.seed
+        self.seed = seed if seed is not None else (self.config.seed or Config.DEFAULT_SEED)
         self._anonymizer = Anonymizer(self.config, self.seed)
         self._mapper = MappingManager(self.seed)
-        # Share the same mapping dict so save/load are always in sync
         self._mapper.mapping = self._anonymizer.mapping
 
     @property
