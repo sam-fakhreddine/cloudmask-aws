@@ -1,18 +1,9 @@
-"""CloudMask - AWS Infrastructure Anonymizer.
+"""CloudMask - AWS Infrastructure Anonymizer."""
 
-Anonymize AWS resource IDs, account IDs, and other identifying information
-for secure LLM processing while maintaining reversible mappings.
-"""
+from typing import Any
 
 from .__version__ import __version__
 from .config.config import Config, CustomPattern
-from .config.config_loader import load_config, load_from_env, validate_config
-from .config.config_templates import (
-    ConfigTemplates,
-    get_template,
-    list_templates,
-    save_template,
-)
 from .core import (
     CloudMask,
     CloudUnmask,
@@ -31,60 +22,65 @@ from .exceptions import (
     MappingError,
     ValidationError,
 )
-from .io.storage import (
-    Storage,
-    ensure_secure_permissions,
-    get_default_config_path,
-    get_default_mapping_path,
-    get_storage_dir,
-)
-from .io.streaming import stream_anonymize_file, stream_unanonymize_file
-from .logging import setup_logging
-from .utils.ratelimit import BatchRateLimiter, RateLimiter
-from .utils.security import (
-    decrypt_mapping,
-    encrypt_mapping,
-    load_encrypted_mapping,
-    save_encrypted_mapping,
-)
+from .io.file_processor import FileProcessor
+from .logging import log_operation, logger, setup_logging
+
+_LAZY_IMPORTS = {
+    "load_config": ".config.config_loader",
+    "load_from_env": ".config.config_loader",
+    "validate_config": ".config.config_loader",
+    "ConfigTemplates": ".config.config_templates",
+    "get_template": ".config.config_templates",
+    "list_templates": ".config.config_templates",
+    "save_template": ".config.config_templates",
+    "Storage": ".io.storage",
+    "ensure_secure_permissions": ".io.storage",
+    "get_default_config_path": ".io.storage",
+    "get_default_mapping_path": ".io.storage",
+    "get_storage_dir": ".io.storage",
+    "stream_anonymize_file": ".io.streaming",
+    "stream_unanonymize_file": ".io.streaming",
+    "BatchRateLimiter": ".utils.ratelimit",
+    "RateLimiter": ".utils.ratelimit",
+    "decrypt_mapping": ".utils.security",
+    "encrypt_mapping": ".utils.security",
+    "load_encrypted_mapping": ".utils.security",
+    "save_encrypted_mapping": ".utils.security",
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _LAZY_IMPORTS:
+        import importlib
+
+        module = importlib.import_module(_LAZY_IMPORTS[name], __name__)
+        value = getattr(module, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module 'cloudmask' has no attribute {name!r}")
+
 
 __all__ = [
-    "BatchRateLimiter",
-    "ClipboardError",
-    "CloudMask",
-    "CloudMaskError",
-    "CloudUnmask",
-    "Config",
-    "ConfigTemplates",
-    "ConfigurationError",
-    "CustomPattern",
-    "EncryptionError",
-    "FileOperationError",
-    "MappingError",
-    "RateLimiter",
-    "Storage",
-    "TemporaryMask",
-    "ValidationError",
     "__version__",
+    "Config",
+    "CustomPattern",
+    "CloudMask",
+    "CloudUnmask",
+    "TemporaryMask",
     "anonymize",
     "anonymize_dict",
     "create_batch_anonymizer",
-    "decrypt_mapping",
-    "encrypt_mapping",
-    "ensure_secure_permissions",
-    "get_default_config_path",
-    "get_default_mapping_path",
-    "get_storage_dir",
-    "get_template",
-    "list_templates",
-    "load_config",
-    "load_encrypted_mapping",
-    "load_from_env",
-    "save_encrypted_mapping",
-    "save_template",
-    "setup_logging",
-    "stream_anonymize_file",
-    "stream_unanonymize_file",
     "unanonymize",
-    "validate_config",
+    "ClipboardError",
+    "CloudMaskError",
+    "ConfigurationError",
+    "EncryptionError",
+    "FileOperationError",
+    "MappingError",
+    "ValidationError",
+    "FileProcessor",
+    "log_operation",
+    "logger",
+    "setup_logging",
+    *_LAZY_IMPORTS.keys(),
 ]
