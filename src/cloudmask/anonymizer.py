@@ -1,11 +1,14 @@
 """Anonymization engine for CloudMask."""
 
 import hashlib
+import hmac
 import re
 
 from .config.config import Config
 from .utils.patterns import (
     AWS_ACCOUNT_PATTERN,
+    AWS_RESOURCE_PATTERN,
+    AWS_RESOURCE_PREFIXES,
     DOMAIN_PATTERN,
     IP_ADDRESS_PATTERN,
     get_aws_patterns,
@@ -22,10 +25,15 @@ class Anonymizer:
         self.seed = seed
         self.mapping: dict[str, str] = {}
 
-        self._compiled_custom: list[tuple[re.Pattern[str], str]] = [
-            (re.compile(cp.pattern, re.IGNORECASE), cp.name)
-            for cp in config.custom_patterns
-        ]
+        self._compiled_custom: list[tuple[re.Pattern[str], str]] = []
+        for cp in config.custom_patterns:
+            try:
+                compiled = re.compile(cp.pattern, re.IGNORECASE)
+                self._compiled_custom.append((compiled, cp.name))
+            except re.error:
+                pass  # Already validated in CustomPattern.__post_init__
+
+        self._aws_patterns = get_aws_patterns()
 
         _companies = [c for c in config.company_names if c.strip()]
         self._compiled_company: re.Pattern[str] | None = (
@@ -40,8 +48,9 @@ class Anonymizer:
         )
 
     def _hash(self, value: str, prefix: str = "") -> str:
-        """Generate deterministic hash."""
-        hash_hex = hashlib.sha256(f"{self.seed}:{prefix}:{value}".encode()).hexdigest()[:16]
+        """Generate deterministic HMAC-based hash."""
+        msg = f"{prefix}:{value}".encode()
+        hash_hex = hmac.new(self.seed.encode(), msg, hashlib.sha256).hexdigest()[:16]
         return f"{prefix}-{hash_hex}" if prefix else hash_hex
 
     def _anonymize_by_type(self, original: str, resource_type: str) -> str:
@@ -57,7 +66,9 @@ class Anonymizer:
             case "domain":
                 anonymized = self._hash_to_domain(original)
             case "company":
-                anonymized = f"Company-{self._hash(original, 'company')[:8]}"
+                msg = f"company:{original}".encode()
+                hash_hex = hmac.new(self.seed.encode(), msg, hashlib.sha256).hexdigest()[:8]
+                anonymized = f"Company-{hash_hex}"
             case _:
                 anonymized = self._hash(original, resource_type)[:12]
 
@@ -66,18 +77,21 @@ class Anonymizer:
 
     def _hash_to_account(self, original: str) -> str:
         """Generate 12-digit account ID."""
-        hash_hex = hashlib.sha256(f"{self.seed}:account:{original}".encode()).hexdigest()[:12]
+        msg = f"account:{original}".encode()
+        hash_hex = hmac.new(self.seed.encode(), msg, hashlib.sha256).hexdigest()[:12]
         hash_int = int(hash_hex, 16)
         return f"{hash_int % 1_000_000_000_000:012d}"
 
     def _hash_to_ip(self, original: str) -> str:
-        """Generate IP address."""
-        hash_bytes = hashlib.sha256(f"{self.seed}:ip:{original}".encode()).digest()[:4]
-        return ".".join(str(b) for b in hash_bytes)
+        """Generate IP in RFC 5737 documentation range (198.51.100.x)."""
+        msg = f"ip:{original}".encode()
+        hash_byte = hmac.new(self.seed.encode(), msg, hashlib.sha256).digest()[0]
+        return f"198.51.100.{hash_byte}"
 
     def _hash_to_domain(self, original: str) -> str:
         """Generate domain name."""
-        hash_hex = self._hash(original, "domain")[:12]
+        msg = f"domain:{original}".encode()
+        hash_hex = hmac.new(self.seed.encode(), msg, hashlib.sha256).hexdigest()[:12]
         tld = original.split(".")[-1] if "." in original else "com"
         return f"domain-{hash_hex}.{tld}"
 
@@ -86,35 +100,7 @@ class Anonymizer:
         if "-" not in resource_id:
             return ""
         prefix = resource_id.split("-", 1)[0]
-        known = {
-            "vpc",
-            "subnet",
-            "sg",
-            "igw",
-            "rtb",
-            "eni",
-            "eip",
-            "vol",
-            "snap",
-            "ami",
-            "i",
-            "r",
-            "lt",
-            "asg",
-            "elb",
-            "tg",
-            "elbv2",
-            "natgw",
-            "vpce",
-            "acl",
-            "pcx",
-            "vgw",
-            "cgw",
-            "vpn",
-            "dopt",
-            "nacl",
-        }
-        return prefix if prefix in known else ""
+        return prefix if prefix in AWS_RESOURCE_PREFIXES else ""
 
     def _anonymize_aws_resource(self, match: re.Match[str]) -> str:
         """Anonymize AWS resource IDs."""
@@ -126,8 +112,6 @@ class Anonymizer:
             result = AWS_ACCOUNT_PATTERN.sub(
                 lambda m: self._anonymize_by_type(m.group(0), "account"), original
             )
-            from .utils.patterns import AWS_RESOURCE_PATTERN
-
             result = AWS_RESOURCE_PATTERN.sub(lambda m: self._anonymize_aws_resource(m), result)
             self.mapping[original] = result
             return result
@@ -145,7 +129,7 @@ class Anonymizer:
         """Anonymize text."""
         result = text
 
-        for pattern in get_aws_patterns():
+        for pattern in self._aws_patterns:
             result = pattern.sub(self._anonymize_aws_resource, result)
 
         result = AWS_ACCOUNT_PATTERN.sub(
