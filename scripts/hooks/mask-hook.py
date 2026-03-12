@@ -138,7 +138,9 @@ _RTK_COMMANDS = frozenset(
 )
 
 _prefix_alt = "|".join(sorted(AWS_RESOURCE_PREFIXES, key=len, reverse=True))
-_QUICK_SCAN = re.compile(rf"(?:(?:{_prefix_alt})-[0-9a-f]{{4,17}}|\b\d{{12}}\b|arn:aws:)")
+_QUICK_SCAN = re.compile(
+    rf"(?:(?:{_prefix_alt})-[0-9a-f]{{4,17}}|\b\d{{12}}\b|arn:aws:)", re.IGNORECASE
+)
 
 _MASK_OUTPUT_SCRIPT = Path(__file__).resolve().parent / "mask-output.py"
 
