@@ -57,6 +57,12 @@ docs/_templates/
 # Pre-commit
 .pre-commit-config.yaml.bak
 
+# WFC development artifacts
+plans/
+wfc/
+.wfc-progress/
+.worktrees/
+
 # Workspace - ignore contents but keep folder
 workspace/*
 !workspace/README.md
