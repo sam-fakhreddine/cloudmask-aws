@@ -37,18 +37,29 @@ logic is a simple reverse string-replace, keeping the post-hook fast and
 dependency-light.
 """
 
+import fcntl
 import json
+import os
+import re
 import sys
+import tempfile
 from pathlib import Path
 
 SHADOW_ROOT = Path.home() / ".cloudmask" / "hooks" / "shadow"
 MAPPING_PATH = Path.home() / ".cloudmask" / "hooks" / "mapping.json"
+MAX_UNANONYMIZE_PASSES = 5
 
 
 def _shadow_to_real(shadow_path: Path) -> Path:
     """Convert a shadow path back to the original real path."""
-    rel = shadow_path.relative_to(SHADOW_ROOT)
-    return Path("/") / rel
+    resolved_shadow = shadow_path.resolve()
+    resolved_root = SHADOW_ROOT.resolve()
+    rel = resolved_shadow.relative_to(resolved_root)
+    real = (Path("/") / rel).resolve()
+    # Block path traversal: real path must not contain shadow root
+    if str(real).startswith(str(resolved_root)):
+        raise ValueError(f"Real path resolves inside shadow root: {real}")
+    return real
 
 
 def _is_shadow(file_path: str) -> bool:
@@ -65,26 +76,66 @@ def _load_reverse_mapping() -> dict[str, str]:
     if not MAPPING_PATH.is_file():
         return {}
 
-    raw = json.loads(MAPPING_PATH.read_text(encoding="utf-8"))
-    forward = raw.get("mappings", raw) if "_metadata" in raw else raw
+    # Acquire shared lock for read consistency with mask-hook writes
+    lock_file = None
+    try:
+        lock_path = MAPPING_PATH.with_suffix(".lock")
+        lock_file = lock_path.open("w")
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_SH)
+    except OSError:
+        pass
 
-    return {v: k for k, v in forward.items()}
+    try:
+        raw = json.loads(MAPPING_PATH.read_text(encoding="utf-8"))
+
+        # Ensure mapping has secure permissions
+        try:
+            os.chmod(MAPPING_PATH, 0o600)
+        except OSError:
+            pass
+
+        # Robust format detection: only use "mappings" key if it exists
+        if "_metadata" in raw:
+            forward = raw.get("mappings", {})
+        else:
+            forward = raw
+
+        # Filter non-string entries to prevent TypeErrors during replacement
+        return {
+            v: k for k, v in forward.items()
+            if isinstance(k, str) and isinstance(v, str)
+        }
+    finally:
+        if lock_file is not None:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                lock_file.close()
+            except OSError:
+                pass
 
 
 def _unanonymize(text: str, reverse: dict[str, str]) -> str:
-    """Replace anonymized tokens with originals, multi-pass.
+    """Replace anonymized tokens with originals using regex for O(M) per pass.
 
-    Multiple passes are needed because the anonymizer can produce chained
-    mappings (A->B->C) when ARN components get re-anonymized. Each pass
-    resolves one level of the chain.
+    Multiple passes handle chained mappings (A->B->C) from ARN re-anonymization.
     """
-    sorted_items = sorted(reverse.items(), key=lambda x: len(x[0]), reverse=True)
-    for _ in range(5):
+    if not reverse:
+        return text
+    # Build regex alternation (longest first to avoid partial matches)
+    sorted_keys = sorted(reverse, key=len, reverse=True)
+    pattern = re.compile("|".join(re.escape(k) for k in sorted_keys))
+    converged = False
+    for _ in range(MAX_UNANONYMIZE_PASSES):
         prev = text
-        for anon, orig in sorted_items:
-            text = text.replace(anon, orig)
+        text = pattern.sub(lambda m: reverse[m.group(0)], text)
         if text == prev:
+            converged = True
             break
+    if not converged:
+        print(
+            f"cloudmask demask-hook: unanonymize did not converge in {MAX_UNANONYMIZE_PASSES} passes",
+            file=sys.stderr,
+        )
     return text
 
 
@@ -113,9 +164,21 @@ def main() -> None:
 
         real = _shadow_to_real(shadow)
         real.parent.mkdir(parents=True, exist_ok=True)
-        real.write_text(restored, encoding="utf-8")
-    except Exception:
-        pass
+        # Atomic write to prevent truncation on interrupt
+        fd, tmp = tempfile.mkstemp(dir=real.parent, prefix=".demask_", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(restored)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, real)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+    except Exception as e:
+        print(f"cloudmask demask-hook error: {e!r}", file=sys.stderr)
 
 
 if __name__ == "__main__":
