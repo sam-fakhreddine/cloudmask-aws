@@ -1,11 +1,13 @@
 """CloudMask - Refactored core module."""
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from .anonymizer import Anonymizer
 from .config.config import Config
+from .exceptions import FileOperationError, MappingError, ValidationError
 from .io.file_processor import FileProcessor
 from .logging import logger
 from .mapper import MappingManager
@@ -17,9 +19,11 @@ class CloudMask:
     def __init__(self, config: Config | None = None, seed: str | None = None):
         """Initialize CloudMask with configuration and seed."""
         self.config = config or Config()
-        self.seed = seed or self.config.seed
+        self.seed = seed if seed is not None else self.config.seed
         self._anonymizer = Anonymizer(self.config, self.seed)
         self._mapper = MappingManager(self.seed)
+        # Share the same mapping dict so save/load are always in sync
+        self._mapper.mapping = self._anonymizer.mapping
 
     @property
     def mapping(self) -> dict[str, str]:
@@ -61,12 +65,11 @@ class CloudUnmask:
             case (dict() as m, None):
                 logger.debug("Initializing with provided mapping")
                 self.reverse_mapping = {v: k for k, v in m.items()}
+                self._sorted_replacements = sorted(
+                    self.reverse_mapping.items(), key=lambda x: len(x[0]), reverse=True
+                )
             case (None, Path() as f):
                 logger.debug(f"Loading mapping from {f}")
-                import json
-
-                from .exceptions import FileOperationError, MappingError
-
                 if not f.exists():
                     raise FileOperationError(
                         f"Mapping file not found: {f}",
@@ -76,6 +79,9 @@ class CloudUnmask:
                     data = json.loads(f.read_text())
                     loaded = data.get("mappings", data) if "_metadata" in data else data
                     self.reverse_mapping = {v: k for k, v in loaded.items()}
+                    self._sorted_replacements = sorted(
+                        self.reverse_mapping.items(), key=lambda x: len(x[0]), reverse=True
+                    )
                 except json.JSONDecodeError as e:
                     raise MappingError(
                         f"Invalid JSON in mapping file: {e}",
@@ -84,9 +90,8 @@ class CloudUnmask:
             case (None, None):
                 logger.debug("Initializing with empty mapping")
                 self.reverse_mapping = {}
+                self._sorted_replacements = []
             case _:
-                from .exceptions import ValidationError
-
                 raise ValidationError(
                     "Provide either mapping or mapping_file, not both",
                     "Use only one parameter",
@@ -95,9 +100,7 @@ class CloudUnmask:
     def unanonymize(self, text: str) -> str:
         """Restore original values."""
         result = text
-        for anonymized, original in sorted(
-            self.reverse_mapping.items(), key=lambda x: len(x[0]), reverse=True
-        ):
+        for anonymized, original in self._sorted_replacements:
             result = result.replace(anonymized, original)
         return result
 
@@ -122,8 +125,11 @@ class TemporaryMask:
         return self.mask
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Exit context and cleanup."""
-        pass
+        """Exit context and clear sensitive mapping data."""
+        if self.mask is not None:
+            self.mask._anonymizer.mapping.clear()
+            self.mask._mapper.mapping.clear()
+            self.mask = None
 
 
 def anonymize(
@@ -148,24 +154,19 @@ def create_batch_anonymizer(seed: str, config: Config | None = None) -> Callable
     return mask.anonymize
 
 
+def _anonymize_value(value: Any, mask: CloudMask) -> Any:
+    """Recursively anonymize a value."""
+    match value:
+        case str():
+            return mask.anonymize(value)
+        case dict():
+            return anonymize_dict(value, mask)
+        case list():
+            return [_anonymize_value(item, mask) for item in value]
+        case _:
+            return value
+
+
 def anonymize_dict(data: dict[str, Any], mask: CloudMask) -> dict[str, Any]:
-    """Recursively anonymize dictionary values."""
-    result: dict[str, Any] = {}
-    for key, value in data.items():
-        match value:
-            case str():
-                result[key] = mask.anonymize(value)
-            case dict():
-                result[key] = anonymize_dict(value, mask)
-            case list():
-                result[key] = [
-                    (
-                        mask.anonymize(item)
-                        if isinstance(item, str)
-                        else anonymize_dict(item, mask) if isinstance(item, dict) else item
-                    )
-                    for item in value
-                ]
-            case _:
-                result[key] = value
-    return result
+    """Recursively anonymize dictionary values (keys preserved as-is)."""
+    return {key: _anonymize_value(value, mask) for key, value in data.items()}
