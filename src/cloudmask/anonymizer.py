@@ -23,6 +23,7 @@ class Anonymizer:
         """Initialize anonymizer with configuration and seed."""
         self.config = config
         self.seed = seed
+        self._seed_bytes = seed.encode()
         self.mapping: dict[str, str] = {}
 
         self._compiled_custom: list[tuple[re.Pattern[str], str]] = []
@@ -38,9 +39,7 @@ class Anonymizer:
         _companies = [c for c in config.company_names if c.strip()]
         self._compiled_company: re.Pattern[str] | None = (
             re.compile(
-                "|".join(
-                    re.escape(c) for c in sorted(_companies, key=len, reverse=True)
-                ),
+                "|".join(re.escape(c) for c in sorted(_companies, key=len, reverse=True)),
                 re.IGNORECASE,
             )
             if _companies
@@ -50,7 +49,7 @@ class Anonymizer:
     def _hash(self, value: str, prefix: str = "") -> str:
         """Generate deterministic HMAC-based hash."""
         msg = f"{prefix}:{value}".encode()
-        hash_hex = hmac.new(self.seed.encode(), msg, hashlib.sha256).hexdigest()[:16]
+        hash_hex = hmac.new(self._seed_bytes, msg, hashlib.sha256).hexdigest()[:16]
         return f"{prefix}-{hash_hex}" if prefix else hash_hex
 
     def _anonymize_by_type(self, original: str, resource_type: str) -> str:
@@ -67,31 +66,35 @@ class Anonymizer:
                 anonymized = self._hash_to_domain(original)
             case "company":
                 msg = f"company:{original}".encode()
-                hash_hex = hmac.new(self.seed.encode(), msg, hashlib.sha256).hexdigest()[:8]
+                hash_hex = hmac.new(self._seed_bytes, msg, hashlib.sha256).hexdigest()[:8]
                 anonymized = f"Company-{hash_hex}"
             case _:
-                anonymized = self._hash(original, resource_type)[:12]
+                anonymized = self._hash(original, resource_type)
 
         self.mapping[original] = anonymized
         return anonymized
 
     def _hash_to_account(self, original: str) -> str:
-        """Generate 12-digit account ID."""
+        """Generate 12-digit account ID (may start with 0, like real AWS accounts)."""
         msg = f"account:{original}".encode()
-        hash_hex = hmac.new(self.seed.encode(), msg, hashlib.sha256).hexdigest()[:12]
+        hash_hex = hmac.new(self._seed_bytes, msg, hashlib.sha256).hexdigest()[:12]
         hash_int = int(hash_hex, 16)
-        return f"{hash_int % 1_000_000_000_000:012d}"
+        return f"{hash_int % 10**12:012d}"
 
     def _hash_to_ip(self, original: str) -> str:
-        """Generate IP in RFC 5737 documentation range (198.51.100.x)."""
+        """Generate IP in RFC 5737 documentation ranges."""
         msg = f"ip:{original}".encode()
-        hash_byte = hmac.new(self.seed.encode(), msg, hashlib.sha256).digest()[0]
-        return f"198.51.100.{hash_byte}"
+        hash_bytes = hmac.new(self._seed_bytes, msg, hashlib.sha256).digest()[:2]
+        idx = int.from_bytes(hash_bytes, "big")
+        ranges = [(192, 0, 2), (198, 51, 100), (203, 0, 113)]
+        net = ranges[idx % 3]
+        host = (idx % 254) + 1
+        return f"{net[0]}.{net[1]}.{net[2]}.{host}"
 
     def _hash_to_domain(self, original: str) -> str:
         """Generate domain name."""
         msg = f"domain:{original}".encode()
-        hash_hex = hmac.new(self.seed.encode(), msg, hashlib.sha256).hexdigest()[:12]
+        hash_hex = hmac.new(self._seed_bytes, msg, hashlib.sha256).hexdigest()[:12]
         tld = original.split(".")[-1] if "." in original else "com"
         return f"domain-{hash_hex}.{tld}"
 
@@ -132,9 +135,16 @@ class Anonymizer:
         for pattern in self._aws_patterns:
             result = pattern.sub(self._anonymize_aws_resource, result)
 
-        result = AWS_ACCOUNT_PATTERN.sub(
-            lambda m: self._anonymize_by_type(m.group(0), "account"), result
-        )
+        if self.config.anonymize_standalone_accounts:
+            mapped_values = set(self.mapping.values())
+            result = AWS_ACCOUNT_PATTERN.sub(
+                lambda m: (
+                    m.group(0)
+                    if m.group(0) in mapped_values
+                    else self._anonymize_by_type(m.group(0), "account")
+                ),
+                result,
+            )
 
         for compiled, name in self._compiled_custom:
             result = compiled.sub(

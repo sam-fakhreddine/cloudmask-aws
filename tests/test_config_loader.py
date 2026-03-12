@@ -52,15 +52,13 @@ class TestMultipleFormats:
     def test_load_from_yaml(self, tmp_path):
         """Test loading from YAML file."""
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 seed: yaml-seed
 preserve_prefixes: true
 company_names:
   - Company A
   - Company B
-"""
-        )
+""")
 
         config = load_config(config_file, use_env=False)
         assert config.seed == "yaml-seed"

@@ -1,6 +1,7 @@
 """CloudMask - Refactored core module."""
 
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,7 @@ class CloudMask:
         filepath = Path(filepath) if isinstance(filepath, str) else filepath
         self._mapper.mapping = self.mapping
         self._mapper.save(filepath, merge)
+        self._anonymizer.mapping = self._mapper.mapping
 
     def load_mapping(self, filepath: Path | str) -> None:
         """Load mapping from file."""
@@ -67,6 +69,7 @@ class CloudUnmask:
                 self._sorted_replacements = sorted(
                     self.reverse_mapping.items(), key=lambda x: len(x[0]), reverse=True
                 )
+                self._compiled_pattern: re.Pattern[str] | None = None
             case (None, Path() as f):
                 logger.debug(f"Loading mapping from {f}")
                 if not f.exists():
@@ -81,6 +84,7 @@ class CloudUnmask:
                     self._sorted_replacements = sorted(
                         self.reverse_mapping.items(), key=lambda x: len(x[0]), reverse=True
                     )
+                    self._compiled_pattern = None
                 except json.JSONDecodeError as e:
                     raise MappingError(
                         f"Invalid JSON in mapping file: {e}",
@@ -90,6 +94,7 @@ class CloudUnmask:
                 logger.debug("Initializing with empty mapping")
                 self.reverse_mapping = {}
                 self._sorted_replacements = []
+                self._compiled_pattern = None
             case _:
                 raise ValidationError(
                     "Provide either mapping or mapping_file, not both",
@@ -97,11 +102,11 @@ class CloudUnmask:
                 )
 
     def unanonymize(self, text: str) -> str:
-        """Restore original values."""
-        result = text
-        for anonymized, original in self._sorted_replacements:
-            result = result.replace(anonymized, original)
-        return result
+        """Restore original values using single-pass regex replacement."""
+        if not self._sorted_replacements:
+            return text
+        pattern = re.compile("|".join(re.escape(k) for k, _ in self._sorted_replacements))
+        return pattern.sub(lambda m: self.reverse_mapping[m.group(0)], text)
 
     def unanonymize_file(self, input_path: Path, output_path: Path) -> int:
         """Unanonymize a file."""
@@ -132,7 +137,7 @@ class TemporaryMask:
 
 
 def anonymize(
-    text: str, seed: str = "default-seed", **config_options: Any
+    text: str, seed: str = Config.DEFAULT_SEED, **config_options: Any
 ) -> tuple[str, dict[str, str]]:
     """Quick anonymization function."""
     config = Config(seed=seed, **config_options)

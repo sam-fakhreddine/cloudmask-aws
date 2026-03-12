@@ -41,6 +41,7 @@ class TestPatternMatching:
         assert AWS_SERVICE_URL_PATTERN.match("s3://my-bucket")
         assert AWS_SERVICE_URL_PATTERN.match("dynamodb://my-table")
         assert not AWS_SERVICE_URL_PATTERN.match("http://example.com")
+        assert not AWS_SERVICE_URL_PATTERN.match("f74b74fd5e853b5e")
 
     def test_ip_pattern(self):
         """Test IP address pattern."""

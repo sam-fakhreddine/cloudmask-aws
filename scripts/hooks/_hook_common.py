@@ -135,7 +135,7 @@ def save_mapping_encrypted(mapping: dict[str, str], seed: str) -> None:
             f.write(file_data)
         Path(tmp).chmod(0o600)
         Path(tmp).replace(MAPPING_PATH)
-    except BaseException:
+    except Exception:
         Path(tmp).unlink(missing_ok=True)
         raise
 

@@ -49,7 +49,9 @@ BLOCKED_DIR = Path.home() / ".cloudmask" / ".blockedprompts"
 MAX_AGE_DAYS = 15
 
 _prefix_alt = "|".join(sorted(AWS_RESOURCE_PREFIXES, key=len, reverse=True))
-_QUICK_SCAN = re.compile(rf"(?:(?:{_prefix_alt})-[0-9a-f]{{4,17}}|\b\d{{12}}\b|arn:aws:)")
+_QUICK_SCAN = re.compile(
+    rf"(?:(?:{_prefix_alt})-[0-9a-f]{{4,17}}|\b\d{{12}}\b|arn:aws:)", re.IGNORECASE
+)
 
 
 def _cleanup_old_prompts() -> None:
@@ -164,8 +166,8 @@ def main() -> None:
             sys.stdout,
         )
     except Exception as e:
-        log.error("prompt-mask-hook error: %r", e)
-        print(f"cloudmask prompt-mask-hook error: {e!r}", file=sys.stderr)
+        log.error("prompt-mask-hook error: %s", type(e).__name__)
+        print(f"cloudmask prompt-mask-hook error: {type(e).__name__}", file=sys.stderr)
     finally:
         if lock_file is not None:
             try:

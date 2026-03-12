@@ -1,6 +1,9 @@
 """Mapping file management."""
 
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None  # type: ignore[assignment]
 import hashlib
 import json
 import os
@@ -38,31 +41,27 @@ class MappingManager:
     def _merge_existing(self, filepath: Path, payload: dict[str, Any]) -> None:
         """Merge with existing mappings if file exists."""
         try:
-            if not filepath.exists():
-                return
-        except (OSError, PermissionError):
+            existing = json.loads(filepath.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return
+        except (json.JSONDecodeError, OSError, PermissionError) as e:
+            logger.warning(f"Could not load existing mapping: {e}")
             return
 
-        try:
-            existing = json.loads(filepath.read_text(encoding="utf-8"))
-
-            if "_metadata" in existing:
-                if existing["_metadata"].get("seed_hash") != payload["_metadata"]["seed_hash"]:
-                    raise MappingError(
-                        "Cannot merge mappings created with different seeds",
-                        "Use the same seed for all mappings",
-                    )
-                existing_mappings = existing.get("mappings", {})
-                existing_mappings.update(self.mapping)
-                payload["mappings"] = existing_mappings
-                logger.debug(f"Merged {len(existing.get('mappings', {}))} existing mappings")
-            else:
-                logger.warning("Existing mapping has no seed metadata")
-                existing.update(self.mapping)
-                payload["mappings"] = existing
-
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"Could not load existing mapping: {e}")
+        if "_metadata" in existing:
+            if existing["_metadata"].get("seed_hash") != payload["_metadata"]["seed_hash"]:
+                raise MappingError(
+                    "Cannot merge mappings created with different seeds",
+                    "Use the same seed for all mappings",
+                )
+            existing_mappings = existing.get("mappings", {})
+            existing_mappings.update(self.mapping)
+            payload["mappings"] = existing_mappings
+            logger.debug(f"Merged {len(existing.get('mappings', {}))} existing mappings")
+        else:
+            logger.warning("Existing mapping has no seed metadata")
+            existing.update(self.mapping)
+            payload["mappings"] = existing
 
     def _write_atomic(self, filepath: Path, data: dict[str, Any]) -> None:
         """Write mapping file atomically."""
@@ -84,6 +83,7 @@ class MappingManager:
         """Execute the merge-check-write cycle (caller holds any lock)."""
         if merge:
             self._merge_existing(filepath, payload)
+            self.mapping = payload["mappings"]
 
         if len(payload["mappings"]) > 1_000_000:
             raise MappingError(
@@ -101,6 +101,8 @@ class MappingManager:
 
     def _acquire_lock(self, filepath: Path) -> "IO[str] | None":
         """Acquire file lock, returning lock file or None on failure."""
+        if fcntl is None:
+            return None
         lock_path = filepath.with_suffix(".lock")
         try:
             lock_file = lock_path.open("w")
@@ -114,7 +116,8 @@ class MappingManager:
         """Release file lock."""
         if lock_file is not None:
             try:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                if fcntl is not None:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
                 lock_file.close()
             except OSError:
                 pass

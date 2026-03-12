@@ -53,23 +53,70 @@ if not SEED:
 
 log.debug("Seed resolved, len=%d", len(SEED))
 
+# 10 MB limit for hooks (vs 100 MB in library FileProcessor) — hooks run on
+# every tool call so must be fast; large files are passed through unmasked.
 MAX_FILE_SIZE = 10_000_000
 MAX_SHADOW_FILES = 1000
 
-INCLUDE_EXT = frozenset(
+_DEFAULT_INCLUDE_EXT = frozenset(
     {
-        ".tf", ".tfvars", ".hcl", ".yaml", ".yml", ".json", ".toml", ".py",
-        ".js", ".ts", ".jsx", ".tsx", ".sh", ".bash", ".zsh", ".cfg", ".ini",
-        ".conf", ".env", ".properties", ".txt", ".md", ".rst", ".log", ".csv",
-        ".xml", ".go", ".rs", ".java", ".rb",
+        ".tf",
+        ".tfvars",
+        ".hcl",
+        ".yaml",
+        ".yml",
+        ".json",
+        ".toml",
+        ".py",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".cfg",
+        ".ini",
+        ".conf",
+        ".env",
+        ".properties",
+        ".txt",
+        ".md",
+        ".rst",
+        ".log",
+        ".csv",
+        ".xml",
+        ".go",
+        ".rs",
+        ".java",
+        ".rb",
     }
 )
 
+# Full override via env: CLOUDMASK_INCLUDE_EXT=".sql,.jsonnet,.hcl"
+_ext_override = os.environ.get("CLOUDMASK_INCLUDE_EXT")
+if _ext_override:
+    INCLUDE_EXT = frozenset(e.strip() for e in _ext_override.split(",") if e.strip())
+else:
+    INCLUDE_EXT = _DEFAULT_INCLUDE_EXT
+
 _EXCLUDED_DIRS = frozenset(
     {
-        ".git", "node_modules", ".venv", "venv", "__pycache__",
-        ".tox", ".mypy_cache", ".ruff_cache", ".pytest_cache",
-        "dist", "build", ".eggs", ".cloudmask", ".worktrees", ".temp",
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".tox",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+        "dist",
+        "build",
+        ".eggs",
+        ".cloudmask",
+        ".worktrees",
+        ".temp",
     }
 )
 
@@ -77,13 +124,23 @@ _EXCLUDED_DIRS = frozenset(
 # updatedInput conflicts (RTK and mask-hook both return updatedInput).
 _RTK_COMMANDS = frozenset(
     {
-        "git", "npm", "npx", "yarn", "pnpm", "cargo",
-        "docker", "podman", "rustup", "brew",
+        "git",
+        "npm",
+        "npx",
+        "yarn",
+        "pnpm",
+        "cargo",
+        "docker",
+        "podman",
+        "rustup",
+        "brew",
     }
 )
 
 _prefix_alt = "|".join(sorted(AWS_RESOURCE_PREFIXES, key=len, reverse=True))
-_QUICK_SCAN = re.compile(rf"(?:(?:{_prefix_alt})-[0-9a-f]{{4,17}}|\b\d{{12}}\b|arn:aws:)")
+_QUICK_SCAN = re.compile(
+    rf"(?:(?:{_prefix_alt})-[0-9a-f]{{4,17}}|\b\d{{12}}\b|arn:aws:)", re.IGNORECASE
+)
 
 _MASK_OUTPUT_SCRIPT = Path(__file__).resolve().parent / "mask-output.py"
 
@@ -155,7 +212,7 @@ def _anonymize_to_shadow(file_path: str, content: str) -> "Path | None":
                 f.write(anonymized)
             Path(tmp).chmod(0o600)
             Path(tmp).replace(shadow)
-        except BaseException:
+        except Exception:
             Path(tmp).unlink(missing_ok=True)
             raise
 
@@ -165,7 +222,7 @@ def _anonymize_to_shadow(file_path: str, content: str) -> "Path | None":
         log.info("Anonymized %s -> %s (%d mappings)", file_path, shadow, len(mask.mapping))
         return shadow
     except Exception as e:
-        log.error("Anonymization failed for %s: %r", file_path, e)
+        log.error("Anonymization failed for %s: %s", file_path, type(e).__name__)
         return None
     finally:
         if lock_file is not None:
@@ -232,7 +289,9 @@ def _handle_read(file_path: str) -> bool:
         _respond({"file_path": str(shadow)})
         log.info("Read: redirected to shadow %s", shadow)
         return True
-    return False
+    log.error("Read: anonymization failed for %s, blocking", file_path)
+    block_tool("CloudMask anonymization failed — file blocked to prevent data exposure")
+    return True
 
 
 def _handle_write_or_edit(file_path: str) -> None:

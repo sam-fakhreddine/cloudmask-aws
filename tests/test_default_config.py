@@ -39,14 +39,12 @@ def test_load_config_from_default_location(tmp_path, monkeypatch):
     config_dir = tmp_path / ".cloudmask"
     config_dir.mkdir()
     config_file = config_dir / "config.yml"
-    config_file.write_text(
-        """
+    config_file.write_text("""
 seed: default-seed-12345
 company_names:
   - Default Corp
 preserve_prefixes: true
-"""
-    )
+""")
 
     # Load config from default location
     config_path = get_default_config_path()

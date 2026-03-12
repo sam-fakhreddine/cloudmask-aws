@@ -1,5 +1,7 @@
 """File processing utilities."""
 
+import os
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -37,9 +39,18 @@ class FileProcessor:
 
     @staticmethod
     def write_file(filepath: Path, content: str) -> None:
-        """Write file with error handling."""
+        """Write file atomically with error handling."""
+        filepath.parent.mkdir(parents=True, exist_ok=True)
         try:
-            filepath.write_text(content, encoding="utf-8")
+            fd, tmp = tempfile.mkstemp(dir=filepath.parent, prefix=".cloudmask_", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                Path(tmp).chmod(0o600)
+                Path(tmp).replace(filepath)
+            except Exception:
+                Path(tmp).unlink(missing_ok=True)
+                raise
         except OSError as e:
             raise FileOperationError(
                 f"Cannot write to output file: {e}", "Check file permissions and disk space"

@@ -28,13 +28,11 @@ class TestConfigLoaderEdgeCases:
             pytest.skip("TOML support requires Python 3.11+")
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [cloudmask]
 seed = "toml-seed"
 preserve_prefixes = true
-"""
-        )
+""")
 
         data = load_from_toml(config_file)
         assert data["seed"] == "toml-seed"
@@ -53,14 +51,12 @@ preserve_prefixes = true
     def test_load_config_with_custom_patterns(self, tmp_path):
         """Test loading config with custom patterns."""
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 seed: test-seed
 custom_patterns:
   - pattern: 'TEST-\\d+'
     name: test
-"""
-        )
+""")
 
         config = load_config(config_file, use_env=False)
         assert len(config.custom_patterns) == 1

@@ -81,13 +81,10 @@ class TestPerformance:
         )
         mask = CloudMask(config=config, seed="perf-test")
 
-        text = (
-            """
+        text = """
         Company A uses vpc-123 with IP 192.168.1.1 and domain example.com
         Company B has i-456 at 10.0.0.1 accessing test.example.org
-        """
-            * 100
-        )
+        """ * 100
 
         start = time.time()
         result = mask.anonymize(text)
