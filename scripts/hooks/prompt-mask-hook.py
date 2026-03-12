@@ -66,7 +66,6 @@ def _generate_prompt_path(prompt: str) -> Path:
 def _describe_matches(prompt: str) -> str:
     """Build a human-readable summary of what was caught."""
     found = []
-    # Check each category by comparing original vs anonymized
     if re.search(r"arn:aws:", prompt):
         found.append("ARNs")
     if re.search(r"\b\d{12}\b", prompt):
@@ -131,19 +130,17 @@ def main() -> None:
         prompt_file.write_text(anonymized, encoding="utf-8")
         prompt_file.chmod(0o600)
 
+        # decision/reason at top level, not inside hookSpecificOutput
         json.dump(
             {
-                "hookSpecificOutput": {
-                    "hookEventName": "UserPromptSubmit",
-                    "decision": "block",
-                    "reason": (
-                        f"CloudMask blocked this prompt — detected: {matched}\n"
-                        "Masked version saved. Resubmit with:\n\n"
-                        f"  see @{prompt_file}\n\n"
-                        "Or copy the masked prompt:\n\n"
-                        f"  {anonymized}"
-                    ),
-                }
+                "decision": "block",
+                "reason": (
+                    f"CloudMask blocked this prompt — detected: {matched}\n"
+                    "Masked version saved. Resubmit with:\n\n"
+                    f"  see @{prompt_file}\n\n"
+                    "Or copy the masked prompt:\n\n"
+                    f"  {anonymized}"
+                ),
             },
             sys.stdout,
         )
