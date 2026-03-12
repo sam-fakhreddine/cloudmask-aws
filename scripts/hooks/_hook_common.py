@@ -16,6 +16,9 @@ SHADOW_ROOT = Path.home() / ".cloudmask" / "hooks" / "shadow"
 MAPPING_PATH = Path.home() / ".cloudmask" / "hooks" / "mapping.json"
 SEED_FILE = Path.home() / ".cloudmask" / "seed"
 
+# Marker line embedded in sanitized files to prevent double anonymization
+CLOUDMASK_MARKER = "<!-- CLOUDMASK:SANITIZED -->"
+
 
 def read_seed() -> str:
     """Read seed: OS keychain -> dedicated file -> env var."""
