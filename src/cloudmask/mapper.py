@@ -6,7 +6,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from .exceptions import FileOperationError, MappingError
 from .logging import log_operation, logger
@@ -99,7 +99,7 @@ class MappingManager:
                 "Check file permissions and disk space",
             ) from e
 
-    def _acquire_lock(self, filepath: Path):
+    def _acquire_lock(self, filepath: Path) -> "IO[str] | None":
         """Acquire file lock, returning lock file or None on failure."""
         lock_path = filepath.with_suffix(".lock")
         try:
@@ -110,7 +110,7 @@ class MappingManager:
             logger.warning(f"Could not acquire lock ({e}), proceeding without lock")
             return None
 
-    def _release_lock(self, lock_file) -> None:
+    def _release_lock(self, lock_file: "IO[str] | None") -> None:
         """Release file lock."""
         if lock_file is not None:
             try:
