@@ -31,7 +31,7 @@ block-beta
 ### Hook Files
 
 | File | Event | Purpose |
-|------|-------|---------|
+| ------ | ------- | --------- |
 | `mask-hook.py` | PreToolUse | Anonymizes content before Claude reads it |
 | `demask-hook.py` | PostToolUse | Restores real values after Claude writes |
 | `mask-output.py` | (Bash pipe) | Anonymizes command output line-by-line |
@@ -41,7 +41,7 @@ block-beta
 ### Tool Coverage
 
 | Tool | PreToolUse (mask) | PostToolUse (demask) |
-|------|:-:|:-:|
+| ------ | :-: | :-: |
 | **Read** | Redirect to shadow copy | -- |
 | **Write** | Redirect to shadow if exists | Unanonymize shadow OR real file |
 | **Edit** | Redirect to shadow if exists | Unanonymize shadow OR real file |
