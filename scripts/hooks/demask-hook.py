@@ -8,35 +8,19 @@ Depends on mask-hook.py running as a PreToolUse hook to create the shadow
 files and populate the mapping.
 
 Shadow layout: ~/.cloudmask/hooks/shadow/<real-path-without-leading-slash>
-Mapping:       ~/.cloudmask/hooks/mapping.json
+Mapping:       ~/.cloudmask/hooks/mapping.json (encrypted at rest)
 
 Install
 -------
 1. Copy to ~/.claude/hooks/demask-hook.py
-2. Add to ~/.claude/settings.json:
+2. Run: python3 scripts/install-hooks.py
 
-    {
-      "hooks": {
-        "PostToolUse": [
-          {
-            "matcher": "Write|Edit",
-            "hooks": [
-              {
-                "type": "command",
-                "command": "python3 ~/.claude/hooks/demask-hook.py",
-                "timeout": 30
-              }
-            ]
-          }
-        ]
-      }
-    }
-
-Note: This hook intentionally does NOT import cloudmask. The unanonymize
-logic is a simple reverse string-replace, keeping the post-hook fast and
-dependency-light.
+Note: This hook avoids importing cloudmask for fast startup. Decryption uses
+the cryptography library directly (via _hook_common), and unanonymize is a
+simple reverse string-replace with chain resolution.
 """
 
+import contextlib
 import fcntl
 import json
 import os
@@ -45,9 +29,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-SHADOW_ROOT = Path.home() / ".cloudmask" / "hooks" / "shadow"
-MAPPING_PATH = Path.home() / ".cloudmask" / "hooks" / "mapping.json"
-MAX_UNANONYMIZE_PASSES = 5
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _hook_common import MAPPING_PATH, SHADOW_ROOT, decrypt_json, read_seed
+
+SEED_FILE = Path.home() / ".cloudmask" / "seed"
 
 
 def _shadow_to_real(shadow_path: Path) -> Path:
@@ -56,7 +42,6 @@ def _shadow_to_real(shadow_path: Path) -> Path:
     resolved_root = SHADOW_ROOT.resolve()
     rel = resolved_shadow.relative_to(resolved_root)
     real = (Path("/") / rel).resolve()
-    # Block path traversal: real path must not contain shadow root
     if str(real).startswith(str(resolved_root)):
         raise ValueError(f"Real path resolves inside shadow root: {real}")
     return real
@@ -65,7 +50,7 @@ def _shadow_to_real(shadow_path: Path) -> Path:
 def _is_shadow(file_path: str) -> bool:
     """Check if a path is under the shadow root."""
     try:
-        Path(file_path).relative_to(SHADOW_ROOT)
+        Path(file_path).resolve().relative_to(SHADOW_ROOT.resolve())
         return True
     except ValueError:
         return False
@@ -76,7 +61,6 @@ def _load_reverse_mapping() -> dict[str, str]:
     if not MAPPING_PATH.is_file():
         return {}
 
-    # Acquire shared lock for read consistency with mask-hook writes
     lock_file = None
     try:
         lock_path = MAPPING_PATH.with_suffix(".lock")
@@ -86,25 +70,31 @@ def _load_reverse_mapping() -> dict[str, str]:
         pass
 
     try:
-        raw = json.loads(MAPPING_PATH.read_text(encoding="utf-8"))
+        raw = MAPPING_PATH.read_bytes()
+        if not raw:
+            return {}
 
-        # Ensure mapping has secure permissions
-        try:
-            os.chmod(MAPPING_PATH, 0o600)
-        except OSError:
-            pass
-
-        # Robust format detection: only use "mappings" key if it exists
-        if "_metadata" in raw:
-            forward = raw.get("mappings", {})
+        seed = read_seed()
+        if seed:
+            try:
+                data = decrypt_json(raw, seed)
+            except Exception:
+                try:
+                    data = json.loads(raw.decode("utf-8"))
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    return {}
         else:
-            forward = raw
+            try:
+                data = json.loads(raw.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                return {}
 
-        # Filter non-string entries to prevent TypeErrors during replacement
-        return {
-            v: k for k, v in forward.items()
-            if isinstance(k, str) and isinstance(v, str)
-        }
+        with contextlib.suppress(OSError):
+            MAPPING_PATH.chmod(0o600)
+
+        forward = data.get("mappings", {}) if "_metadata" in data else data
+
+        return {v: k for k, v in forward.items() if isinstance(k, str) and isinstance(v, str)}
     finally:
         if lock_file is not None:
             try:
@@ -114,29 +104,46 @@ def _load_reverse_mapping() -> dict[str, str]:
                 pass
 
 
-def _unanonymize(text: str, reverse: dict[str, str]) -> str:
-    """Replace anonymized tokens with originals using regex for O(M) per pass.
+def _resolve_chains(reverse: dict[str, str]) -> dict[str, str]:
+    """Resolve transitive chains: if A->B and B->C exists, produce A->C."""
+    resolved: dict[str, str] = {}
+    for key, value in reverse.items():
+        seen = {key}
+        current = value
+        while current in reverse and current not in seen:
+            seen.add(current)
+            current = reverse[current]
+        resolved[key] = current
+    return resolved
 
-    Multiple passes handle chained mappings (A->B->C) from ARN re-anonymization.
+
+def _unanonymize(text: str, reverse: dict[str, str]) -> str:
+    """Replace anonymized tokens with originals in a single pass.
+
+    Chains (A->B->C from ARN re-anonymization) are resolved in the mapping
+    before text replacement, so one regex pass suffices.
     """
     if not reverse:
         return text
-    # Build regex alternation (longest first to avoid partial matches)
-    sorted_keys = sorted(reverse, key=len, reverse=True)
+    resolved = _resolve_chains(reverse)
+    sorted_keys = sorted(resolved, key=len, reverse=True)
     pattern = re.compile("|".join(re.escape(k) for k in sorted_keys))
-    converged = False
-    for _ in range(MAX_UNANONYMIZE_PASSES):
-        prev = text
-        text = pattern.sub(lambda m: reverse[m.group(0)], text)
-        if text == prev:
-            converged = True
-            break
-    if not converged:
-        print(
-            f"cloudmask demask-hook: unanonymize did not converge in {MAX_UNANONYMIZE_PASSES} passes",
-            file=sys.stderr,
-        )
-    return text
+    return pattern.sub(lambda m: resolved[m.group(0)], text)
+
+
+def _atomic_write(content: str, target: Path) -> None:
+    """Write content to target path atomically."""
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=".demask_", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        Path(tmp).chmod(0o600)
+        Path(tmp).replace(target)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            Path(tmp).unlink()
+        raise
 
 
 def main() -> None:
@@ -155,28 +162,20 @@ def main() -> None:
         return
 
     try:
+        content = shadow.read_text(encoding="utf-8")
+
         reverse = _load_reverse_mapping()
         if not reverse:
+            print(
+                f"cloudmask demask-hook: ERROR \u2014 reverse mapping is empty but shadow "
+                f"file exists. Refusing to write anonymized content to real file. "
+                f"Check {MAPPING_PATH}",
+                file=sys.stderr,
+            )
             return
 
-        content = shadow.read_text(encoding="utf-8")
         restored = _unanonymize(content, reverse)
-
-        real = _shadow_to_real(shadow)
-        real.parent.mkdir(parents=True, exist_ok=True)
-        # Atomic write to prevent truncation on interrupt
-        fd, tmp = tempfile.mkstemp(dir=real.parent, prefix=".demask_", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(restored)
-            os.chmod(tmp, 0o600)
-            os.replace(tmp, real)
-        except BaseException:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
+        _atomic_write(restored, _shadow_to_real(shadow))
     except Exception as e:
         print(f"cloudmask demask-hook error: {e!r}", file=sys.stderr)
 
