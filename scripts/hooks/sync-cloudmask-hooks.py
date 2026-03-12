@@ -4,10 +4,13 @@
 Works around anthropics/claude-code#17017 where project-level hooks
 replace global hooks instead of merging. If the current project defines
 hooks for an event that cloudmask also uses, this script injects the
-cloudmask hook entries into the project's .claude/settings.local.json
-so they actually run.
+cloudmask hook entries into the project's .claude/settings.json
+so they actually run. Uses settings.json (not settings.local.json)
+because both local and global settings are replaced by project-level
+settings per #19487.
 
 Runs at SessionStart — fast, no-op if nothing to sync.
+Also runnable standalone: python3 sync-cloudmask-hooks.py
 """
 
 import json
@@ -59,7 +62,6 @@ def main():
         return
 
     project_settings = project_root / ".claude" / "settings.json"
-    project_local = project_root / ".claude" / "settings.local.json"
 
     proj = _load_json(project_settings)
     proj_hooks = proj.get("hooks", {})
@@ -81,28 +83,23 @@ def main():
         return
 
     needs_sync = False
-    local = _load_json(project_local)
-    if "hooks" not in local:
-        local["hooks"] = {}
 
     for event, cm_matchers in cm_entries.items():
         if event not in proj_hooks:
             continue
 
-        local_event = local["hooks"].setdefault(event, [])
-
-        existing_tags = {m.get("_tag") for m in local_event if isinstance(m, dict)}
+        existing_tags = {m.get("_tag") for m in proj_hooks[event] if isinstance(m, dict)}
         if HOOK_TAG in existing_tags:
             continue
 
-        local_event.extend(cm_matchers)
+        proj_hooks[event].extend(cm_matchers)
         needs_sync = True
 
     if needs_sync:
-        _atomic_write_json(local, project_local)
+        _atomic_write_json(proj, project_settings)
         count = sum(len(v) for v in cm_entries.values())
         print(
-            f"cloudmask: synced {count} hook(s) into {project_local} "
+            f"cloudmask: synced {count} hook(s) into {project_settings} "
             f"(workaround for anthropics/claude-code#17017)",
             file=sys.stderr,
         )
