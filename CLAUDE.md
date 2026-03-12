@@ -97,3 +97,18 @@ The installer copies hook files to `~/.claude/hooks/`, stores the seed in the OS
 - **Ruff ignores**: `F401` in `__init__.py`, `ARG`/`S101` in tests.
 - **Atomic file writes**: All hook file I/O uses `tempfile.mkstemp` + `os.fdopen` + `Path.replace` pattern.
 - **File locking**: `fcntl.flock` (LOCK_EX for writes, LOCK_SH for reads) on `mapping.json.lock`.
+
+## Known Development Gotchas
+
+### zsh `\!` escaping in hook-wrapped output
+
+When developing with hooks active, zsh's history expansion can escape `!` to `\!` in content that passes through the Bash hook wrapper. This corrupts Python operators like `!=` to `\!=` (SyntaxError). **This only affects developers editing CloudMask source through Claude Code** — library users and normal hook users are not affected.
+
+**Workarounds:**
+- Add `setopt NO_BANG_HIST` to `~/.zshrc` to disable zsh history expansion (recommended)
+- Use string concatenation in tests for values containing `!` (e.g., `"vpc-" + "A1B2C3D4"`) to avoid hook interception
+- When writing files via Claude Code, verify no `\!` was injected: `grep -r '\\!' src/ tests/`
+
+### Hooks venv
+
+Hooks run from a dedicated venv at `~/.cloudmask/.venv/` (not the project venv). The installer creates this automatically. If hooks fail silently in other projects, run `python3 scripts/install-hooks.py` to recreate the venv.

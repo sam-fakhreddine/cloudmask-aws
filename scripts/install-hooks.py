@@ -29,6 +29,8 @@ SETTINGS_FILE = CLAUDE_DIR / "settings.json"
 CLOUDMASK_DIR = Path.home() / ".cloudmask"
 CLOUDMASK_HOOKS_DIR = CLOUDMASK_DIR / "hooks"
 SEED_FILE = CLOUDMASK_DIR / "seed"
+VENV_DIR = CLOUDMASK_DIR / ".venv"
+VENV_PYTHON = VENV_DIR / "bin" / "python3"
 
 HOOK_FILES = [
     "_hook_common.py",
@@ -43,6 +45,7 @@ HOOK_TAG = "cloudmask-hooks"
 
 def _build_hook_config() -> dict:
     """Build the hooks config to merge into settings.json."""
+    py = shlex.quote(str(VENV_PYTHON))
     return {
         "hooks": {
             "PreToolUse": [
@@ -52,7 +55,7 @@ def _build_hook_config() -> dict:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"python3 {shlex.quote(str(HOOKS_DIR / 'mask-hook.py'))}",
+                            "command": f"{py} {shlex.quote(str(HOOKS_DIR / 'mask-hook.py'))}",
                             "timeout": 30,
                         }
                     ],
@@ -65,7 +68,7 @@ def _build_hook_config() -> dict:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"python3 {shlex.quote(str(HOOKS_DIR / 'demask-hook.py'))}",
+                            "command": f"{py} {shlex.quote(str(HOOKS_DIR / 'demask-hook.py'))}",
                             "timeout": 30,
                         }
                     ],
@@ -78,7 +81,7 @@ def _build_hook_config() -> dict:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"python3 {shlex.quote(str(HOOKS_DIR / 'prompt-mask-hook.py'))}",
+                            "command": f"{py} {shlex.quote(str(HOOKS_DIR / 'prompt-mask-hook.py'))}",
                             "timeout": 30,
                         }
                     ],
@@ -190,12 +193,112 @@ def _write_settings(settings: dict) -> None:
 
 
 def _check_cloudmask_importable() -> bool:
-    """Check if cloudmask is importable."""
-    try:
-        import cloudmask  # noqa: F401
+    """Check if cloudmask is importable from the hooks venv."""
+    if not VENV_PYTHON.is_file():
+        return False
+    import subprocess
 
+    result = subprocess.run(
+        [str(VENV_PYTHON), "-c", "import cloudmask"],
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
+def _setup_venv() -> bool:
+    """Create ~/.cloudmask/.venv/ and install cloudmask-aws into it.
+
+    Tries uv first, falls back to python3 -m venv + pip.
+    Returns True on success, False on failure.
+    """
+    import subprocess
+
+    CLOUDMASK_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+    # --- Create venv ---
+    venv_created = False
+
+    # Try uv first
+    uv_bin = shutil.which("uv")
+    if uv_bin:
+        print(f"  Creating venv with uv: {VENV_DIR}")
+        result = subprocess.run(
+            [uv_bin, "venv", str(VENV_DIR), "--python", "3.10"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0 and VENV_PYTHON.is_file():
+            venv_created = True
+        else:
+            # Retry without --python constraint
+            result = subprocess.run(
+                [uv_bin, "venv", str(VENV_DIR)],
+                capture_output=True,
+                text=True,
+            )
+            venv_created = result.returncode == 0 and VENV_PYTHON.is_file()
+
+    # Fallback: python3 -m venv
+    if not venv_created:
+        py3 = shutil.which("python3")
+        if py3:
+            print(f"  Creating venv with python3 -m venv: {VENV_DIR}")
+            result = subprocess.run(
+                [py3, "-m", "venv", str(VENV_DIR)],
+                capture_output=True,
+                text=True,
+            )
+            venv_created = result.returncode == 0 and VENV_PYTHON.is_file()
+
+    if not venv_created:
+        print("  ERROR: Could not create venv. Install uv or ensure python3 -m venv works.")
+        return False
+
+    # --- Install cloudmask-aws ---
+    installed = False
+
+    # Try uv pip install first (faster)
+    if uv_bin:
+        print("  Installing cloudmask-aws with uv pip...")
+        result = subprocess.run(
+            [uv_bin, "pip", "install", "--python", str(VENV_PYTHON), f"{REPO_ROOT}"],
+            capture_output=True,
+            text=True,
+        )
+        installed = result.returncode == 0
+        if not installed:
+            print(f"  uv pip install failed: {result.stderr.strip()}")
+
+    # Fallback: venv pip
+    if not installed:
+        pip_bin = VENV_DIR / "bin" / "pip"
+        if pip_bin.is_file():
+            print("  Installing cloudmask-aws with pip...")
+            result = subprocess.run(
+                [str(pip_bin), "install", str(REPO_ROOT)],
+                capture_output=True,
+                text=True,
+            )
+            installed = result.returncode == 0
+            if not installed:
+                print(f"  pip install failed: {result.stderr.strip()}")
+
+    if not installed:
+        print("  ERROR: Could not install cloudmask-aws into the venv.")
+        return False
+
+    # Verify
+    result = subprocess.run(
+        [str(VENV_PYTHON), "-c", "import cloudmask; print(cloudmask.__version__)"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        version = result.stdout.strip()
+        print(f"  cloudmask-aws {version} installed in {VENV_DIR}")
         return True
-    except ImportError:
+    else:
+        print("  ERROR: cloudmask-aws installed but import verification failed.")
         return False
 
 
@@ -253,7 +356,7 @@ def install(seed: str | None = None) -> int:
     print("  CloudMask Hook Installer for Claude Code")
     print("=" * 60)
 
-    print("\n[1/5] Checking prerequisites...")
+    print("\n[1/6] Checking prerequisites...")
 
     if not _check_cloudmask_importable():
         print("  ERROR: cloudmask-aws is not installed.")
@@ -280,7 +383,7 @@ def install(seed: str | None = None) -> int:
             print("  Aborted.")
             return 0
 
-    print("\n[2/5] Configuring seed...")
+    print("\n[2/6] Configuring seed...")
     if seed:
         if len(seed) < 8:
             print(f"  ERROR: Seed must be at least 8 characters (got {len(seed)}).")
@@ -289,7 +392,14 @@ def install(seed: str | None = None) -> int:
     else:
         seed = _prompt_seed()
 
-    print("\n[3/5] Installing hook files...")
+    print("\n[3/6] Setting up dedicated venv...")
+    if VENV_PYTHON.is_file() and _check_cloudmask_importable():
+        print(f"  Existing venv OK: {VENV_DIR}")
+    else:
+        if not _setup_venv():
+            return 1
+
+    print("\n[4/6] Installing hook files...")
     HOOKS_DIR.mkdir(parents=True, exist_ok=True)
     for fname in HOOK_FILES:
         src = HOOK_SOURCES / fname
@@ -298,7 +408,7 @@ def install(seed: str | None = None) -> int:
         dst.chmod(0o700)
         print(f"  {dst}")
 
-    print("\n[4/5] Storing seed and creating shadow directory...")
+    print("\n[5/6] Storing seed and creating shadow directory...")
     keychain_ok = False
     try:
         import keyring
@@ -317,7 +427,7 @@ def install(seed: str | None = None) -> int:
     CLOUDMASK_HOOKS_DIR.mkdir(parents=True, exist_ok=True)
     print(f"  {CLOUDMASK_HOOKS_DIR}")
 
-    print("\n[5/5] Configuring Claude Code settings...")
+    print("\n[6/6] Configuring Claude Code settings...")
     settings = _load_settings()
     hook_config = _build_hook_config()
     settings = _merge_settings(settings, hook_config)
@@ -398,6 +508,14 @@ def uninstall() -> int:
         SEED_FILE.unlink()
         print(f"  Removed: {SEED_FILE}")
 
+    if VENV_DIR.exists():
+        choice = input(f"\n  Also delete hooks venv? ({VENV_DIR}) [y/N]: ").strip().lower()
+        if choice == "y":
+            shutil.rmtree(VENV_DIR)
+            print(f"  Removed: {VENV_DIR}")
+        else:
+            print(f"  Kept: {VENV_DIR}")
+
     if CLOUDMASK_HOOKS_DIR.exists():
         choice = (
             input(f"\n  Also delete shadow files and mapping? ({CLOUDMASK_HOOKS_DIR}) [y/N]: ")
@@ -422,12 +540,14 @@ def show_status() -> int:
 
     status = _is_installed()
     cloudmask_ok = _check_cloudmask_importable()
+    venv_ok = VENV_PYTHON.is_file()
 
     def yesno(val: bool) -> str:
         return "installed" if val else "NOT installed"
 
     print(f"""
-  cloudmask-aws:    {"importable" if cloudmask_ok else "NOT importable"}
+  hooks venv:       {"exists" if venv_ok else "NOT found"} ({VENV_DIR})
+  cloudmask-aws:    {"importable" if cloudmask_ok else "NOT importable (run installer)"}
   mask-hook.py:     {yesno(status["mask_hook"])}    ({HOOKS_DIR / "mask-hook.py"})
   demask-hook.py:   {yesno(status["demask_hook"])}    ({HOOKS_DIR / "demask-hook.py"})
   settings.json:    {"configured" if status["settings_configured"] else "NOT configured"}
@@ -440,6 +560,7 @@ def show_status() -> int:
 
     if all(
         (
+            venv_ok,
             cloudmask_ok,
             status["mask_hook"],
             status["demask_hook"],
