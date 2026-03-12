@@ -75,11 +75,11 @@ class Anonymizer:
         return anonymized
 
     def _hash_to_account(self, original: str) -> str:
-        """Generate 12-digit account ID (never starts with 0)."""
+        """Generate 12-digit account ID (may start with 0, like real AWS accounts)."""
         msg = f"account:{original}".encode()
         hash_hex = hmac.new(self._seed_bytes, msg, hashlib.sha256).hexdigest()[:12]
         hash_int = int(hash_hex, 16)
-        return str((hash_int % 900_000_000_000) + 100_000_000_000)
+        return f"{hash_int % 10**12:012d}"
 
     def _hash_to_ip(self, original: str) -> str:
         """Generate IP in RFC 5737 documentation ranges."""
