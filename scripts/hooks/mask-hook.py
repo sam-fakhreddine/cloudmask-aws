@@ -6,36 +6,18 @@ Claude processes file content. Writes anonymized copies to a shadow directory
 and redirects Claude's tool operations to those shadow copies.
 
 Shadow layout: ~/.cloudmask/hooks/shadow/<real-path-without-leading-slash>
-Mapping:       ~/.cloudmask/hooks/mapping.json
-Seed:          $CLOUDMASK_SEED env var, or "claude-hook-default-seed"
+Mapping:       ~/.cloudmask/hooks/mapping.json (encrypted at rest)
+Seed:          OS keychain > ~/.cloudmask/seed > $CLOUDMASK_SEED env var
 
 Install
 -------
 1. pip install cloudmask-aws  (or: uv pip install -e ".[dev]" from repo root)
 2. Copy to ~/.claude/hooks/mask-hook.py
-3. Add to ~/.claude/settings.json:
-
-    {
-      "hooks": {
-        "PreToolUse": [
-          {
-            "matcher": "Read|Write|Edit",
-            "hooks": [
-              {
-                "type": "command",
-                "command": "python3 ~/.claude/hooks/mask-hook.py",
-                "timeout": 30
-              }
-            ]
-          }
-        ]
-      }
-    }
+3. Run: python3 scripts/install-hooks.py
 
 Limitations
 -----------
-- Only covers file Read/Write/Edit. Grep results, Bash output, and user-typed
-  prompts reach Claude unmasked.
+- Grep results and Bash output reach Claude unmasked.
 - Files >10 MB or with non-text extensions are passed through unmasked.
 - Requires cloudmask-aws to be importable by the python3 in your PATH.
 """
@@ -48,12 +30,24 @@ import sys
 import tempfile
 from pathlib import Path
 
-SHADOW_ROOT = Path.home() / ".cloudmask" / "hooks" / "shadow"
-MAPPING_PATH = Path.home() / ".cloudmask" / "hooks" / "mapping.json"
-SEED = os.environ.get("CLOUDMASK_SEED", "")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _hook_common import (
+    MAPPING_PATH,
+    SHADOW_ROOT,
+    block_tool,
+    load_mapping_data,
+    read_seed,
+    save_mapping_encrypted,
+)
+
+from cloudmask.utils.patterns import AWS_RESOURCE_PREFIXES
+
+SEED = read_seed()
 if not SEED:
-    print("CLOUDMASK_SEED not set. Run: python3 scripts/install-hooks.py", file=sys.stderr)
-    sys.exit(0)  # Exit cleanly — hook produces no output, Claude reads file normally
+    block_tool("CloudMask seed not configured. Run: python3 scripts/install-hooks.py")
+    sys.exit(0)
+
 MAX_FILE_SIZE = 10_000_000
 
 INCLUDE_EXT = frozenset(
@@ -91,21 +85,14 @@ INCLUDE_EXT = frozenset(
     }
 )
 
-_QUICK_SCAN = re.compile(
-    r"(?:"
-    r"(?:vpc|subnet|sg|igw|rtb|eni|eip|vol|snap|ami|i|r|lt|asg|elb|tg|"
-    r"elbv2|natgw|vpce|acl|pcx|vgw|cgw|vpn|dopt|nacl)-[0-9a-f]{4,17}"
-    r"|\b\d{12}\b"
-    r"|arn:aws:"
-    r")"
-)
+_prefix_alt = "|".join(sorted(AWS_RESOURCE_PREFIXES, key=len, reverse=True))
+_QUICK_SCAN = re.compile(rf"(?:(?:{_prefix_alt})-[0-9a-f]{{4,17}}|\b\d{{12}}\b|arn:aws:)")
 
 
 def _real_to_shadow(real_path: str) -> Path:
     """Convert a real absolute path to its shadow counterpart."""
     resolved = Path(real_path).resolve()
     shadow = SHADOW_ROOT / str(resolved).lstrip("/")
-    # Validate shadow stays under SHADOW_ROOT
     shadow.resolve().relative_to(SHADOW_ROOT.resolve())
     return shadow
 
@@ -129,61 +116,81 @@ def _respond(updated_input: dict) -> None:
     )
 
 
-def _handle_read(file_path: str) -> None:
-    """Intercept Read: anonymize file content, redirect to shadow copy."""
+def _handle_read(file_path: str) -> bool:
+    """Intercept Read: anonymize file content, redirect to shadow copy.
+
+    Returns True if a response was emitted, False otherwise.
+    """
     real = Path(file_path)
 
     if not real.is_file():
-        return
+        return False
     ext = real.suffix.lower()
     if ext and ext not in INCLUDE_EXT:
-        return
+        return False
     try:
         if real.stat().st_size > MAX_FILE_SIZE:
-            return
+            return False
     except OSError:
-        return
+        return False
 
     try:
         content = real.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
-        return
+        return False
 
     if not _QUICK_SCAN.search(content):
-        return
+        return False
 
+    lock_file = None
     try:
         from cloudmask.core import CloudMask
 
+        lock_path = MAPPING_PATH.with_suffix(".lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            lock_file = lock_path.open("w")
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        except OSError:
+            pass
+
         mask = CloudMask(seed=SEED)
 
-        if MAPPING_PATH.exists():
-            mask.load_mapping(MAPPING_PATH)
+        existing = load_mapping_data(SEED)
+        mappings = existing.get("mappings", {}) if "_metadata" in existing else existing
+        if isinstance(mappings, dict):
+            mask._anonymizer.mapping.update(mappings)
         mapping_size_before = len(mask.mapping)
 
         anonymized = mask.anonymize(content)
 
         shadow = _real_to_shadow(file_path)
         shadow.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        # Atomic write with secure permissions
         fd, tmp = tempfile.mkstemp(dir=shadow.parent, prefix=".mask_", suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(anonymized)
-            os.chmod(tmp, 0o600)
-            os.replace(tmp, shadow)
+            Path(tmp).chmod(0o600)
+            Path(tmp).replace(shadow)
         except BaseException:
-            os.unlink(tmp)
+            Path(tmp).unlink(missing_ok=True)
             raise
 
         if len(mask.mapping) > mapping_size_before:
-            MAPPING_PATH.parent.mkdir(parents=True, exist_ok=True)
-            mask.save_mapping(MAPPING_PATH)
+            save_mapping_encrypted(mask.mapping, SEED)
 
         _respond({"file_path": str(shadow)})
+        return True
     except Exception as e:
         print(f"cloudmask mask-hook error: {e!r}", file=sys.stderr)
-        return
+        return False
+    finally:
+        if lock_file is not None:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                lock_file.close()
+            except OSError:
+                pass
 
 
 def _handle_write_or_edit(file_path: str) -> None:
@@ -192,11 +199,11 @@ def _handle_write_or_edit(file_path: str) -> None:
         return
     shadow = _real_to_shadow(file_path)
     real = Path(file_path)
-    # If real file is newer than shadow, shadow is stale — re-anonymize first
     if real.is_file():
         try:
             if real.stat().st_mtime > shadow.stat().st_mtime:
-                _handle_read(file_path)
+                if _handle_read(file_path):
+                    return
                 if not shadow.is_file():
                     return
         except OSError:

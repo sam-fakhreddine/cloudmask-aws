@@ -28,18 +28,16 @@ HOOKS_DIR = CLAUDE_DIR / "hooks"
 SETTINGS_FILE = CLAUDE_DIR / "settings.json"
 CLOUDMASK_DIR = Path.home() / ".cloudmask"
 CLOUDMASK_HOOKS_DIR = CLOUDMASK_DIR / "hooks"
+SEED_FILE = CLOUDMASK_DIR / "seed"
 
-HOOK_FILES = ["mask-hook.py", "demask-hook.py"]
+HOOK_FILES = ["_hook_common.py", "mask-hook.py", "demask-hook.py", "prompt-mask-hook.py"]
 
 HOOK_TAG = "cloudmask-hooks"
 
 
-def _build_hook_config(seed: str) -> dict:
-    """Build the hooks + env config to merge into settings.json."""
+def _build_hook_config() -> dict:
+    """Build the hooks config to merge into settings.json."""
     return {
-        "env": {
-            "CLOUDMASK_SEED": seed,
-        },
         "hooks": {
             "PreToolUse": [
                 {
@@ -62,6 +60,19 @@ def _build_hook_config(seed: str) -> dict:
                         {
                             "type": "command",
                             "command": f"python3 {shlex.quote(str(HOOKS_DIR / 'demask-hook.py'))}",
+                            "timeout": 30,
+                        }
+                    ],
+                }
+            ],
+            "UserPromptSubmit": [
+                {
+                    "matcher": "",
+                    "_tag": HOOK_TAG,
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": f"python3 {shlex.quote(str(HOOKS_DIR / 'prompt-mask-hook.py'))}",
                             "timeout": 30,
                         }
                     ],
@@ -139,10 +150,6 @@ def _merge_settings(settings: dict, hook_config: dict) -> dict:
     """Deep-merge hook_config into settings, preserving everything else."""
     settings = _remove_tagged_hooks(settings)
 
-    if "env" not in settings:
-        settings["env"] = {}
-    settings["env"].update(hook_config["env"])
-
     if "hooks" not in settings:
         settings["hooks"] = {}
     for event_name, new_matchers in hook_config["hooks"].items():
@@ -163,15 +170,16 @@ def _write_settings(settings: dict) -> None:
         print(f"  Backup: {backup}")
 
     import tempfile
+
     fd, tmp = tempfile.mkstemp(dir=CLAUDE_DIR, prefix=".settings_", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
             f.write("\n")
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, SETTINGS_FILE)
+        Path(tmp).chmod(0o600)
+        Path(tmp).replace(SETTINGS_FILE)
     except BaseException:
-        os.unlink(tmp)
+        Path(tmp).unlink()
         raise
 
 
@@ -192,6 +200,7 @@ def _is_installed() -> dict:
         "demask_hook": (HOOKS_DIR / "demask-hook.py").is_file(),
         "settings_configured": False,
         "seed": None,
+        "seed_source": None,
     }
 
     if SETTINGS_FILE.is_file():
@@ -203,9 +212,31 @@ def _is_installed() -> dict:
                         if m.get("_tag") == HOOK_TAG:
                             status["settings_configured"] = True
                             break
-            status["seed"] = settings.get("env", {}).get("CLOUDMASK_SEED")
+            env_seed = settings.get("env", {}).get("CLOUDMASK_SEED")
+            if env_seed:
+                status["seed"] = env_seed
+                status["seed_source"] = "env"
         except (json.JSONDecodeError, OSError):
             pass
+
+    try:
+        if SEED_FILE.is_file():
+            file_seed = SEED_FILE.read_text(encoding="utf-8").strip()
+            if file_seed:
+                status["seed"] = file_seed
+                status["seed_source"] = "file"
+    except OSError:
+        pass
+
+    try:
+        import keyring
+
+        keychain_seed = keyring.get_password("cloudmask", "seed")
+        if keychain_seed:
+            status["seed"] = keychain_seed
+            status["seed_source"] = "keychain"
+    except Exception:
+        pass
 
     return status
 
@@ -256,13 +287,28 @@ def install(seed: str | None = None) -> int:
         dst.chmod(0o700)
         print(f"  {dst}")
 
-    print("\n[4/5] Creating shadow directory...")
+    print("\n[4/5] Storing seed and creating shadow directory...")
+    keychain_ok = False
+    try:
+        import keyring
+
+        keyring.set_password("cloudmask", "seed", seed)
+        keychain_ok = True
+        print("  Seed stored in OS keychain (cloudmask/seed)")
+    except Exception as e:
+        print(f"  Keychain unavailable ({e}), using file fallback")
+    CLOUDMASK_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if SEED_FILE.exists():
+        SEED_FILE.chmod(0o600)
+    SEED_FILE.write_text(seed, encoding="utf-8")
+    SEED_FILE.chmod(0o400)
+    print(f"  Seed file: {SEED_FILE}" + (" (fallback)" if keychain_ok else " (primary)"))
     CLOUDMASK_HOOKS_DIR.mkdir(parents=True, exist_ok=True)
     print(f"  {CLOUDMASK_HOOKS_DIR}")
 
     print("\n[5/5] Configuring Claude Code settings...")
     settings = _load_settings()
-    hook_config = _build_hook_config(seed)
+    hook_config = _build_hook_config()
     settings = _merge_settings(settings, hook_config)
     _write_settings(settings)
     print(f"  {SETTINGS_FILE}")
@@ -274,6 +320,7 @@ def install(seed: str | None = None) -> int:
   Seed:       {seed[:4]}...{seed[-4:]}
   Hooks:      {HOOKS_DIR / "mask-hook.py"}
               {HOOKS_DIR / "demask-hook.py"}
+              {HOOKS_DIR / "prompt-mask-hook.py"}
   Settings:   {SETTINGS_FILE}
   Shadow dir: {CLOUDMASK_HOOKS_DIR / "shadow"}
   Mapping:    {CLOUDMASK_HOOKS_DIR / "mapping.json"}
@@ -282,9 +329,11 @@ def install(seed: str | None = None) -> int:
     - Claude Code reads a file  -> mask-hook anonymizes AWS identifiers
     - Claude works with masked content (IDs, ARNs, IPs hidden)
     - Claude writes/edits a file -> demask-hook restores real values
+    - You type a prompt with AWS IDs -> prompt-mask-hook anonymizes it
 
   Limitations:
-    - Grep output, Bash output, and typed prompts are NOT masked
+    - Grep output and Bash output are NOT masked
+    - User prompts are masked via UserPromptSubmit hook
     - Only text files with recognized extensions are processed
     - Files > 10 MB are passed through unmasked
 
@@ -325,6 +374,19 @@ def uninstall() -> int:
         _write_settings(settings)
         print(f"  Cleaned: {SETTINGS_FILE}")
 
+    try:
+        import keyring
+
+        if keyring.get_password("cloudmask", "seed"):
+            keyring.delete_password("cloudmask", "seed")
+            print("  Removed: OS keychain (cloudmask/seed)")
+    except Exception:
+        pass
+
+    if SEED_FILE.is_file():
+        SEED_FILE.unlink()
+        print(f"  Removed: {SEED_FILE}")
+
     if CLOUDMASK_HOOKS_DIR.exists():
         choice = (
             input(f"\n  Also delete shadow files and mapping? ({CLOUDMASK_HOOKS_DIR}) [y/N]: ")
@@ -358,18 +420,22 @@ def show_status() -> int:
   mask-hook.py:     {yesno(status["mask_hook"])}    ({HOOKS_DIR / "mask-hook.py"})
   demask-hook.py:   {yesno(status["demask_hook"])}    ({HOOKS_DIR / "demask-hook.py"})
   settings.json:    {"configured" if status["settings_configured"] else "NOT configured"}
-  CLOUDMASK_SEED:   {(status["seed"][:4] + "..." + status["seed"][-4:]) if status["seed"] and len(status["seed"]) > 8 else status["seed"] or "not set"}
+  seed source:      {status["seed_source"] or "none"}
+  seed file:        {"exists" if SEED_FILE.is_file() else "NOT found"} ({SEED_FILE})
+  seed:             {(status["seed"][:4] + "..." + status["seed"][-4:]) if status["seed"] and len(status["seed"]) > 8 else status["seed"] or "not set"}
   shadow dir:       {"exists" if (CLOUDMASK_HOOKS_DIR / "shadow").is_dir() else "not created yet"}
   mapping file:     {"exists" if (CLOUDMASK_HOOKS_DIR / "mapping.json").is_file() else "not created yet"}
 """)
 
-    if all((
-        cloudmask_ok,
-        status["mask_hook"],
-        status["demask_hook"],
-        status["settings_configured"],
-        status["seed"],
-    )):
+    if all(
+        (
+            cloudmask_ok,
+            status["mask_hook"],
+            status["demask_hook"],
+            status["settings_configured"],
+            status["seed"],
+        )
+    ):
         print("  Status: FULLY INSTALLED\n")
     elif any((status["mask_hook"], status["demask_hook"], status["settings_configured"])):
         print("  Status: PARTIALLY INSTALLED (run installer to fix)\n")

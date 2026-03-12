@@ -4,8 +4,6 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
-
 from ..exceptions import ConfigurationError, FileOperationError, ValidationError
 from ..logging import log_operation, logger
 
@@ -41,7 +39,6 @@ class Config:
     anonymize_domains: bool = False
     seed: str = "default-seed"
 
-    # Canonical default — referenced by hooks and convenience functions
     DEFAULT_SEED = "default-seed"
 
     def __post_init__(self) -> None:
@@ -87,12 +84,14 @@ class Config:
                 f"Config file not found: {config_path}",
                 f"Create a config file with: cloudmask init-config -c {config_path}",
             )
-        if config_path.stat().st_size > 1_000_000:  # 1MB limit
+        if config_path.stat().st_size > 1_000_000:
             raise FileOperationError(
                 "Config file too large (max 1MB)", "Reduce the size of your configuration file"
             )
 
         try:
+            import yaml
+
             with config_path.open() as f:
                 data = yaml.safe_load(f) or {}
         except yaml.YAMLError as e:
@@ -126,5 +125,7 @@ class Config:
             "anonymize_domains": self.anonymize_domains,
             "seed": self.seed,
         }
+        import yaml
+
         with config_path.open("w") as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
