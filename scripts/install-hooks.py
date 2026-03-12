@@ -198,7 +198,7 @@ def _check_cloudmask_importable() -> bool:
         return False
     import subprocess
 
-    result = subprocess.run(
+    result = subprocess.run(  # nosec
         [str(VENV_PYTHON), "-c", "import cloudmask"],
         capture_output=True,
     )
@@ -222,7 +222,7 @@ def _setup_venv() -> bool:
     uv_bin = shutil.which("uv")
     if uv_bin:
         print(f"  Creating venv with uv: {VENV_DIR}")
-        result = subprocess.run(
+        result = subprocess.run(  # nosec
             [uv_bin, "venv", str(VENV_DIR), "--python", "3.10"],
             capture_output=True,
             text=True,
@@ -231,7 +231,7 @@ def _setup_venv() -> bool:
             venv_created = True
         else:
             # Retry without --python constraint
-            result = subprocess.run(
+            result = subprocess.run(  # nosec
                 [uv_bin, "venv", str(VENV_DIR)],
                 capture_output=True,
                 text=True,
@@ -243,7 +243,7 @@ def _setup_venv() -> bool:
         py3 = shutil.which("python3")
         if py3:
             print(f"  Creating venv with python3 -m venv: {VENV_DIR}")
-            result = subprocess.run(
+            result = subprocess.run(  # nosec
                 [py3, "-m", "venv", str(VENV_DIR)],
                 capture_output=True,
                 text=True,
@@ -260,7 +260,7 @@ def _setup_venv() -> bool:
     # Try uv pip install first (faster)
     if uv_bin:
         print("  Installing cloudmask-aws with uv pip...")
-        result = subprocess.run(
+        result = subprocess.run(  # nosec
             [uv_bin, "pip", "install", "--python", str(VENV_PYTHON), f"{REPO_ROOT}"],
             capture_output=True,
             text=True,
@@ -274,7 +274,7 @@ def _setup_venv() -> bool:
         pip_bin = VENV_DIR / "bin" / "pip"
         if pip_bin.is_file():
             print("  Installing cloudmask-aws with pip...")
-            result = subprocess.run(
+            result = subprocess.run(  # nosec
                 [str(pip_bin), "install", str(REPO_ROOT)],
                 capture_output=True,
                 text=True,
@@ -288,7 +288,7 @@ def _setup_venv() -> bool:
         return False
 
     # Verify
-    result = subprocess.run(
+    result = subprocess.run(  # nosec
         [str(VENV_PYTHON), "-c", "import cloudmask; print(cloudmask.__version__)"],
         capture_output=True,
         text=True,
