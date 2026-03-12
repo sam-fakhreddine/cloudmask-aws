@@ -205,7 +205,7 @@ shadow/.../network.py:17:  vpc = "vpc-a1b2c3d4e5f67890"
 
 ### Bash Flow
 
-Non-RTK commands are wrapped to pipe output through `mask-output.py`.
+Bash commands are wrapped to pipe output through `mask-output.py`.
 
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#ff6b00', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#ff8c33', 'lineColor': '#66d9ef', 'secondaryColor': '#1a1a2e', 'tertiaryColor': '#16213e', 'noteBkgColor': '#2d2d44', 'noteTextColor': '#e0e0e0', 'actorBkg': '#1a1a2e', 'actorBorder': '#ff6b00', 'actorTextColor': '#ffffff', 'signalColor': '#66d9ef', 'signalTextColor': '#ffffff', 'labelBoxBkgColor': '#1a1a2e', 'labelBoxBorderColor': '#ff6b00', 'labelTextColor': '#ffffff', 'loopTextColor': '#ff6b00', 'activationBkgColor': '#2d2d44', 'activationBorderColor': '#ff8c33', 'sequenceNumberColor': '#ffffff'}}}%%
@@ -218,12 +218,7 @@ sequenceDiagram
 
     CC->>MH: PreToolUse Bash<br/>command: aws ec2 describe-vpcs
 
-    alt RTK command (git, npm, docker...)
-        Note over MH: Skip wrapping<br/>(RTK handles rewrite)
-        MH-->>CC: (pass through)
-    else Non-RTK command
-        MH-->>CC: updatedInput: command:<br/>( aws ec2 describe-vpcs ) 2>&1<br/>| python3 mask-output.py
-    end
+    MH-->>CC: updatedInput: command:<br/>( aws ec2 describe-vpcs ) 2>&1<br/>| python3 mask-output.py
 
     CC->>SH: Execute wrapped command
     SH->>SH: Run: aws ec2 describe-vpcs
@@ -422,7 +417,6 @@ All hooks log to `~/.cloudmask/logs/hooks.log` with 25MB rotation (3 backups).
 2026-03-12 14:24:48,253 [cloudmask.hooks.mask] DEBUG Read: /repo/config.tf
 2026-03-12 14:24:48,307 [cloudmask.hooks.mask] INFO  Anonymized /repo/config.tf -> shadow/... (11 mappings)
 2026-03-12 14:24:48,307 [cloudmask.hooks.mask] INFO  Read: redirected to shadow ...
-2026-03-12 14:24:48,963 [cloudmask.hooks.mask] DEBUG Bash: git is RTK-rewritable, skipping masking
 2026-03-12 14:24:55,060 [cloudmask.hooks.mask] INFO  Grep: redirected dir to shadow ... (42 files)
 2026-03-12 14:25:01,490 [cloudmask.hooks.demask] INFO  Restored shadow/... -> /repo/config.tf (22 reverse mappings)
 2026-03-12 14:25:01,613 [cloudmask.hooks.prompt-mask] DEBUG No sensitive patterns in prompt, passing through
@@ -448,7 +442,6 @@ python3 scripts/install-hooks.py --uninstall
 
 | Limitation | Detail |
 | --- | --- |
-| RTK Bash commands | `git`, `npm`, `docker` etc. skip Bash wrapping to avoid `updatedInput` conflicts with RTK rewrite hook |
 | Grep path display | Search results show `~/.cloudmask/hooks/shadow/...` paths instead of real paths |
 | File size cap | Files > 10 MB are passed through unmasked |
 | Extension filter | Only files with recognized extensions are anonymized (binaries, images skipped) |
