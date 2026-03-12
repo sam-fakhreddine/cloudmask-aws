@@ -41,6 +41,9 @@ class Config:
     anonymize_domains: bool = False
     seed: str = "default-seed"
 
+    # Canonical default — referenced by hooks and convenience functions
+    DEFAULT_SEED = "default-seed"
+
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         if not isinstance(self.company_names, list):
@@ -51,6 +54,14 @@ class Config:
             raise ConfigurationError(
                 "custom_patterns must be a list",
                 "Use: custom_patterns: [{pattern: '...', name: '...'}]",
+            )
+
+        if self.seed == self.DEFAULT_SEED:
+            import warnings
+
+            warnings.warn(
+                "Using default seed. Set a unique seed for production use.",
+                stacklevel=2,
             )
 
     def validate_for_production(self) -> None:
