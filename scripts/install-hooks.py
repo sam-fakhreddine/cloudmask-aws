@@ -14,9 +14,11 @@ Usage:
 
 import argparse
 import json
+import os
+import secrets
+import shlex
 import shutil
 import sys
-import uuid
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -46,7 +48,7 @@ def _build_hook_config(seed: str) -> dict:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"python3 {HOOKS_DIR / 'mask-hook.py'}",
+                            "command": f"python3 {shlex.quote(str(HOOKS_DIR / 'mask-hook.py'))}",
                             "timeout": 30,
                         }
                     ],
@@ -59,7 +61,7 @@ def _build_hook_config(seed: str) -> dict:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"python3 {HOOKS_DIR / 'demask-hook.py'}",
+                            "command": f"python3 {shlex.quote(str(HOOKS_DIR / 'demask-hook.py'))}",
                             "timeout": 30,
                         }
                     ],
@@ -70,8 +72,8 @@ def _build_hook_config(seed: str) -> dict:
 
 
 def _generate_seed_options() -> list[str]:
-    """Generate 5 candidate seeds from UUID4 segments."""
-    return [uuid.uuid4().hex[:8] for _ in range(5)]
+    """Generate 5 candidate seeds with 128-bit entropy."""
+    return [secrets.token_hex(16) for _ in range(5)]
 
 
 def _prompt_seed() -> str:
@@ -152,7 +154,7 @@ def _merge_settings(settings: dict, hook_config: dict) -> dict:
 
 
 def _write_settings(settings: dict) -> None:
-    """Write settings.json with backup."""
+    """Write settings.json atomically with backup."""
     CLAUDE_DIR.mkdir(parents=True, exist_ok=True)
 
     if SETTINGS_FILE.is_file():
@@ -160,7 +162,17 @@ def _write_settings(settings: dict) -> None:
         shutil.copy2(SETTINGS_FILE, backup)
         print(f"  Backup: {backup}")
 
-    SETTINGS_FILE.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+    import tempfile
+    fd, tmp = tempfile.mkstemp(dir=CLAUDE_DIR, prefix=".settings_", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+            f.write("\n")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, SETTINGS_FILE)
+    except BaseException:
+        os.unlink(tmp)
+        raise
 
 
 def _check_cloudmask_importable() -> bool:
@@ -241,7 +253,7 @@ def install(seed: str | None = None) -> int:
         src = HOOK_SOURCES / fname
         dst = HOOKS_DIR / fname
         shutil.copy2(src, dst)
-        dst.chmod(0o755)
+        dst.chmod(0o700)
         print(f"  {dst}")
 
     print("\n[4/5] Creating shadow directory...")
@@ -259,7 +271,7 @@ def install(seed: str | None = None) -> int:
     print("  Installation complete!")
     print("=" * 60)
     print(f"""
-  Seed:       {seed}
+  Seed:       {seed[:4]}...{seed[-4:]}
   Hooks:      {HOOKS_DIR / "mask-hook.py"}
               {HOOKS_DIR / "demask-hook.py"}
   Settings:   {SETTINGS_FILE}
@@ -292,7 +304,7 @@ def uninstall() -> int:
     print("=" * 60)
 
     status = _is_installed()
-    if not any([status["mask_hook"], status["demask_hook"], status["settings_configured"]]):
+    if not any((status["mask_hook"], status["demask_hook"], status["settings_configured"])):
         print("\n  CloudMask hooks are not installed. Nothing to do.")
         return 0
 
@@ -346,22 +358,20 @@ def show_status() -> int:
   mask-hook.py:     {yesno(status["mask_hook"])}    ({HOOKS_DIR / "mask-hook.py"})
   demask-hook.py:   {yesno(status["demask_hook"])}    ({HOOKS_DIR / "demask-hook.py"})
   settings.json:    {"configured" if status["settings_configured"] else "NOT configured"}
-  CLOUDMASK_SEED:   {status["seed"] or "not set"}
+  CLOUDMASK_SEED:   {(status["seed"][:4] + "..." + status["seed"][-4:]) if status["seed"] and len(status["seed"]) > 8 else status["seed"] or "not set"}
   shadow dir:       {"exists" if (CLOUDMASK_HOOKS_DIR / "shadow").is_dir() else "not created yet"}
   mapping file:     {"exists" if (CLOUDMASK_HOOKS_DIR / "mapping.json").is_file() else "not created yet"}
 """)
 
-    if all(
-        [
-            cloudmask_ok,
-            status["mask_hook"],
-            status["demask_hook"],
-            status["settings_configured"],
-            status["seed"],
-        ]
-    ):
+    if all((
+        cloudmask_ok,
+        status["mask_hook"],
+        status["demask_hook"],
+        status["settings_configured"],
+        status["seed"],
+    )):
         print("  Status: FULLY INSTALLED\n")
-    elif any([status["mask_hook"], status["demask_hook"], status["settings_configured"]]):
+    elif any((status["mask_hook"], status["demask_hook"], status["settings_configured"])):
         print("  Status: PARTIALLY INSTALLED (run installer to fix)\n")
     else:
         print("  Status: NOT INSTALLED\n")
